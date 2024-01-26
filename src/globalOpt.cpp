@@ -5,7 +5,7 @@
 GlobalOptimization::GlobalOptimization()
 {
     newUWB = false;
-	WUWB_T_WVIO = Eigen::Matrix4d::Identity();
+    WUWB_T_WVIO = Eigen::Matrix4d::Identity();
     threadOpt = std::thread(&GlobalOptimization::optimize, this);
 }
 
@@ -17,9 +17,9 @@ GlobalOptimization::~GlobalOptimization()
 
 void GlobalOptimization::inputOdom(double t, Eigen::Vector3d OdomP, Eigen::Quaterniond OdomQ)
 {
-	mPoseMap.lock();
+    mPoseMap.lock();
     vector<double> localPose{OdomP.x(), OdomP.y(), OdomP.z(), 
-    					     OdomQ.w(), OdomQ.x(), OdomQ.y(), OdomQ.z()};
+                             OdomQ.w(), OdomQ.x(), OdomQ.y(), OdomQ.z()};
     localPoseMap[t] = localPose;
 
 
@@ -133,7 +133,6 @@ void GlobalOptimization::optimize()
                                                                                 iQj.w(), iQj.x(), iQj.y(), iQj.z(),
                                                                                 0.1, 0.01);
                     problem.AddResidualBlock(vio_function, NULL, q_array[i], t_array[i], q_array[i+1], t_array[i+1]);
-
                 }
                 //uwb factor
                 double t = iterVIO->first;
@@ -144,10 +143,9 @@ void GlobalOptimization::optimize()
                                                                        iterUWB->second[2], iterUWB->second[3]);
                     //printf("inverse weight %f \n", iterUWB->second[3]);
                     problem.AddResidualBlock(uwb_function, loss_function, t_array[i]);
-
                 }
-
             }
+
             //mPoseMap.unlock();
             ceres::Solve(options, &problem, &summary);
             //std::cout << summary.BriefReport() << "\n";
@@ -157,22 +155,22 @@ void GlobalOptimization::optimize()
             iter = globalPoseMap.begin();
             for (int i = 0; i < length; i++, iter++)
             {
-            	vector<double> globalPose{t_array[i][0], t_array[i][1], t_array[i][2],
-            							  q_array[i][0], q_array[i][1], q_array[i][2], q_array[i][3]};
-            	iter->second = globalPose;
-            	if(i == length - 1)
-            	{
-            	    Eigen::Matrix4d WVIO_T_body = Eigen::Matrix4d::Identity(); 
-            	    Eigen::Matrix4d WUWB_T_body = Eigen::Matrix4d::Identity();
-            	    double t = iter->first;
-            	    WVIO_T_body.block<3, 3>(0, 0) = Eigen::Quaterniond(localPoseMap[t][3], localPoseMap[t][4],
-            	                                                       localPoseMap[t][5], localPoseMap[t][6]).toRotationMatrix();
-            	    WVIO_T_body.block<3, 1>(0, 3) = Eigen::Vector3d(localPoseMap[t][0], localPoseMap[t][1], localPoseMap[t][2]);
-            	    WUWB_T_body.block<3, 3>(0, 0) = Eigen::Quaterniond(globalPose[3], globalPose[4], 
-            	                                                        globalPose[5], globalPose[6]).toRotationMatrix();
-            	    WUWB_T_body.block<3, 1>(0, 3) = Eigen::Vector3d(globalPose[0], globalPose[1], globalPose[2]);
-            	    WUWB_T_WVIO = WUWB_T_body * WVIO_T_body.inverse();
-            	}
+                vector<double> globalPose{t_array[i][0], t_array[i][1], t_array[i][2],
+                                          q_array[i][0], q_array[i][1], q_array[i][2], q_array[i][3]};
+                iter->second = globalPose;
+                if(i == length - 1)
+                {
+                    Eigen::Matrix4d WVIO_T_body = Eigen::Matrix4d::Identity(); 
+                    Eigen::Matrix4d WUWB_T_body = Eigen::Matrix4d::Identity();
+                    double t = iter->first;
+                    WVIO_T_body.block<3, 3>(0, 0) = Eigen::Quaterniond(localPoseMap[t][3], localPoseMap[t][4],
+                                                                       localPoseMap[t][5], localPoseMap[t][6]).toRotationMatrix();
+                    WVIO_T_body.block<3, 1>(0, 3) = Eigen::Vector3d(localPoseMap[t][0], localPoseMap[t][1], localPoseMap[t][2]);
+                    WUWB_T_body.block<3, 3>(0, 0) = Eigen::Quaterniond(globalPose[3], globalPose[4], 
+                                                                        globalPose[5], globalPose[6]).toRotationMatrix();
+                    WUWB_T_body.block<3, 1>(0, 3) = Eigen::Vector3d(globalPose[0], globalPose[1], globalPose[2]);
+                    WUWB_T_WVIO = WUWB_T_body * WVIO_T_body.inverse();
+                }
             }
             updateGlobalPath();
             //printf("global time %f \n", globalOptimizationTime.toc());
@@ -181,7 +179,7 @@ void GlobalOptimization::optimize()
         std::chrono::milliseconds dura(2000);
         std::this_thread::sleep_for(dura);
     }
-	return;
+    return;
 }
 
 
