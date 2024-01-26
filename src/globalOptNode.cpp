@@ -36,7 +36,7 @@ void publish_car_model(double t, Eigen::Vector3d t_w_car, Eigen::Quaterniond q_w
 
     Eigen::Matrix3d rot;
     rot << 0, 0, -1, 0, -1, 0, -1, 0, 0;
-    
+
     Eigen::Quaterniond Q;
     Q = q_w_car * rot; 
     car_mesh.pose.position.x    = t_w_car.x();
@@ -65,7 +65,6 @@ void publish_car_model(double t, Eigen::Vector3d t_w_car, Eigen::Quaterniond q_w
 /* For UWB localization */
 void UWB_callback(const geometry_msgs::PoseStamped::ConstPtr &UWB_msg)
 {
-    //printf("uwb_callback! \n");
     m_buf.lock();
     uwbQueue.push(UWB_msg);
     m_buf.unlock();
@@ -135,7 +134,6 @@ void vio_callback(const nav_msgs::Odometry::ConstPtr &pose_msg)
     publish_car_model(t, global_t, global_q);
 
     // write result to file
-    // std::ofstream foutC("/home/tony-ws1/output/vio_global.csv", ios::app);
     std::ofstream foutC("/home/liu/Downloads/output/vio_global.csv", ios::app);
     foutC.setf(ios::fixed, ios::floatfield);
     foutC.precision(0);
