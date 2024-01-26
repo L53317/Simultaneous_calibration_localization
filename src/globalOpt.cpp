@@ -6,7 +6,7 @@ GlobalOptimization::GlobalOptimization()
 {
     newUWB = false;
     WUWB_T_WVIO = Eigen::Matrix4d::Identity();
-    threadOpt = std::thread(&GlobalOptimization::optimize, this);
+    threadOpt = std::thread(&GlobalOptimization::optimize, this); // Create new thread for optimize()
 }
 
 GlobalOptimization::~GlobalOptimization()

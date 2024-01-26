@@ -15,6 +15,9 @@
 #include <queue>
 #include <mutex>
 
+/* Inlcude a UWB message building for UWB data. */
+#include "uwb_localization_dwm/UWBrange.h"
+
 GlobalOptimization globalEstimator;
 ros::Publisher pub_global_odometry, pub_global_path, pub_car;
 nav_msgs::Path *global_path;
@@ -67,6 +70,19 @@ void UWB_callback(const geometry_msgs::PoseStamped::ConstPtr &UWB_msg)
 {
     m_buf.lock();
     uwbQueue.push(UWB_msg);
+    m_buf.unlock();
+}
+
+void UWBrange_callback(const uwb_localization_dwm::UWBrange::ConstPtr &UWBrange_msg)
+{
+    m_buf.lock();
+    printf("UWBrange_msg t : (x, y, z):    %f : (%f, %f, %f), distance_to_tag: %f \n",
+        UWBrange_msg->header.stamp.toSec(),
+        UWBrange_msg->anchor_position.x,
+        UWBrange_msg->anchor_position.y,
+        UWBrange_msg->anchor_position.z,
+        UWBrange_msg->distance_to_tag);
+
     m_buf.unlock();
 }
 
@@ -157,6 +173,7 @@ int main(int argc, char **argv)
     global_path = &globalEstimator.global_path;
 
     ros::Subscriber sub_UWB = n.subscribe("/uwb/localization/tag/hr_position", 100, UWB_callback);
+    ros::Subscriber sub_UWBrange = n.subscribe("/dwm1001/tag/tag/to/anchor/AN0/distance", 100, UWBrange_callback);
     // ros::Subscriber sub_vio = n.subscribe("/vins_estimator/odometry", 100, vio_callback);
     ros::Subscriber sub_vio = n.subscribe("/aft_mapped_to_init_high_frec", 100, vio_callback);
     pub_global_path = n.advertise<nav_msgs::Path>("uwb_anchors_path", 100);
