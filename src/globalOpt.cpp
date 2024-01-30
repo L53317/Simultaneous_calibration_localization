@@ -5,6 +5,7 @@
 GlobalOptimization::GlobalOptimization()
 {
     newUWB = false;
+    newUWBdistance = false;
     WUWB_T_WVIO = Eigen::Matrix4d::Identity();
     threadOpt = std::thread(&GlobalOptimization::optimize, this); // Create new thread for optimize()
 }
@@ -14,16 +15,18 @@ GlobalOptimization::~GlobalOptimization()
     threadOpt.detach();
 }
 
-
+/* Add odom pose to localPoseMap, globalPoseMap and global_path */
 void GlobalOptimization::inputOdom(double t, Eigen::Vector3d OdomP, Eigen::Quaterniond OdomQ)
 {
     mPoseMap.lock();
-    vector<double> localPose{OdomP.x(), OdomP.y(), OdomP.z(), 
+    vector<double> localPose{OdomP.x(), OdomP.y(), OdomP.z(),
                              OdomQ.w(), OdomQ.x(), OdomQ.y(), OdomQ.z()};
     localPoseMap[t] = localPose;
 
-
+    /* Calculate globalPoseMap and global_path */
     Eigen::Quaterniond globalQ;
+    /* Fetch a <3, 3> block start from (0,0), which is a rotation matrix,
+       a <3, 1> block start from (0,3), which is a Translation vector. */
     globalQ = WUWB_T_WVIO.block<3, 3>(0, 0) * OdomQ;
     Eigen::Vector3d globalP = WUWB_T_WVIO.block<3, 3>(0, 0) * OdomP + WUWB_T_WVIO.block<3, 1>(0, 3);
     vector<double> globalPose{globalP.x(), globalP.y(), globalP.z(),
@@ -54,15 +57,74 @@ void GlobalOptimization::getGlobalOdom(Eigen::Vector3d &odomP, Eigen::Quaternion
     odomQ = lastQ;
 }
 
+// void GlobalOptimization::getUWBanchors(Eigen::Vector3d &odomP, Eigen::Quaterniond &odomQ,
+                                    //   Eigen::Vector3d (&anchorP)[4])
+void GlobalOptimization::getUWBanchors(Eigen::Vector3d &odomP, Eigen::Quaterniond &odomQ,
+                                      Eigen::MatrixXd &anchorP)
+{
+    odomP = lastP;
+    odomQ = lastQ;
+    // for (int i = 0; i < sizeof(anchorP)/sizeof(anchorP[0]); i++)
+    // {
+    //     anchorP[i] = last_UWB_anchorsP[i]; // Fixed order of 4 ahchors Positions.
+    // }
+    anchorP = last_UWB_anchorsPs;
+}
+
 /* Use the same global factor with UWB as they not appear in the same situation. */
 void GlobalOptimization::inputUWB(double t, double x, double y, double z, double posAccuracy)
 {
     vector<double> tmp{x, y, z, posAccuracy};
     //printf("new uwb: t: %f x: %f y: %f z:%f \n", t, tmp[0], tmp[1], tmp[2]);
-    // UWBPositionMap[t] = tmp;
-    // newUWB = true;
     UWBPositionMap[t] = tmp;
     newUWB = true;
+}
+
+/* Use the same global factor with UWB as they not appear in the same situation. */
+void GlobalOptimization::inputUWBdistance(double t, double x, double y, double z,
+    double distance, double disAccuracy)
+{
+    vector<double> tmp{x, y, z, distance, disAccuracy};
+    // // printf("new uwb: t: %f x: %f y: %f z:%f \n", t, tmp[0], tmp[1], tmp[2]);
+    UWBDistanceMap[t] = tmp;
+
+    // last_UWB_anchorsP[i] = WUWB_T_WVIO.block<3, 3>(0, 0) * OdomQ;
+
+    /* Which UWB anchors, to update last_UWB_anchorsPs map. */
+    int anchor_i = 0;
+    for (anchor_i = 0; anchor_i < last_UWB_anchorsPs.cols(); anchor_i++)
+    {
+        if (norm(x - last_UWB_anchorsPs(0,anchor_i))<0.01 &&
+            norm(y - last_UWB_anchorsPs(1,anchor_i))<0.01 &&
+            norm(z - last_UWB_anchorsPs(2,anchor_i))<0.01)
+            {
+                break;
+            }
+    }
+     /* Add a new anchor to anchor map. */
+    if (anchor_i >= last_UWB_anchorsPs.cols()) // Only equivalent will exist.
+    {
+        int last_anchor_num = last_UWB_anchorsPs.cols();
+         /* 6 = anchor_initial_pos_dimension + anchor_position_estimate_dimension. */
+        Eigen::MatrixXd new_UWB_anchorsPs(6, last_anchor_num + 1);
+        for (int i = 0; i < last_anchor_num; i++)
+        {
+            new_UWB_anchorsPs.block<6, 1>(0,i) = last_UWB_anchorsPs.block<6, 1>(0,i);
+        }
+
+        last_UWB_anchorsPs = new_UWB_anchorsPs; // maybe need a lock (but note another thread).
+
+        /* Add initial anchors position to map from given data. */
+        last_UWB_anchorsPs(0,anchor_i)= x;
+        last_UWB_anchorsPs(1,anchor_i)= y;
+        last_UWB_anchorsPs(2,anchor_i)= z;
+         /* Initial anchors estimation using anchor's initial position. */
+        last_UWB_anchorsPs(3,anchor_i)= x;
+        last_UWB_anchorsPs(4,anchor_i)= y;
+        last_UWB_anchorsPs(5,anchor_i)= z;
+    }
+
+    newUWBdistance = true;
 }
 
 void GlobalOptimization::optimize()
@@ -75,6 +137,7 @@ void GlobalOptimization::optimize()
             printf("global optimization\n");
             TicToc globalOptimizationTime;
 
+            /* Create a new problem to be solved */
             ceres::Problem problem;
             ceres::Solver::Options options;
             options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
@@ -86,8 +149,9 @@ void GlobalOptimization::optimize()
             loss_function = new ceres::HuberLoss(1.0);
             ceres::LocalParameterization* local_parameterization = new ceres::QuaternionParameterization();
 
-            //add param
+            /* Add param */
             mPoseMap.lock();
+            /* Add local poses in localPoseMap to factor graph */
             int length = localPoseMap.size();
             // w^t_i   w^q_i
             double t_array[length][3];
@@ -108,10 +172,11 @@ void GlobalOptimization::optimize()
             }
 
             map<double, vector<double>>::iterator iterVIO, iterVIONext, iterUWB;
+
             int i = 0;
             for (iterVIO = localPoseMap.begin(); iterVIO != localPoseMap.end(); iterVIO++, i++)
             {
-                //vio factor
+                /* Add vio factor */
                 iterVIONext = iterVIO;
                 iterVIONext++;
                 if(iterVIONext != localPoseMap.end())
@@ -134,7 +199,8 @@ void GlobalOptimization::optimize()
                                                                                 0.1, 0.01);
                     problem.AddResidualBlock(vio_function, NULL, q_array[i], t_array[i], q_array[i+1], t_array[i+1]);
                 }
-                //uwb factor
+
+                /* Add UWB factor */
                 double t = iterVIO->first;
                 iterUWB = UWBPositionMap.find(t);
                 if (iterUWB != UWBPositionMap.end())
@@ -146,12 +212,12 @@ void GlobalOptimization::optimize()
                 }
             }
 
-            //mPoseMap.unlock();
+            // mPoseMap.unlock();
             ceres::Solve(options, &problem, &summary);
-            //std::cout << summary.BriefReport() << "\n";
+            // std::cout << summary.BriefReport() << "\n";
 
-            // update global pose
-            //mPoseMap.lock();
+            /* update global pose, with the optimization results. */
+            // mPoseMap.lock();
             iter = globalPoseMap.begin();
             for (int i = 0; i < length; i++, iter++)
             {
@@ -169,19 +235,24 @@ void GlobalOptimization::optimize()
                     WUWB_T_body.block<3, 3>(0, 0) = Eigen::Quaterniond(globalPose[3], globalPose[4], 
                                                                         globalPose[5], globalPose[6]).toRotationMatrix();
                     WUWB_T_body.block<3, 1>(0, 3) = Eigen::Vector3d(globalPose[0], globalPose[1], globalPose[2]);
-                    WUWB_T_WVIO = WUWB_T_body * WVIO_T_body.inverse();
+                    WUWB_T_WVIO = WUWB_T_body * WVIO_T_body.inverse(); // get the transformation from VIO to UWB
                 }
             }
             updateGlobalPath();
-            //printf("global time %f \n", globalOptimizationTime.toc());
+            // printf("global time %f \n", globalOptimizationTime.toc());
             mPoseMap.unlock();
         }
-        std::chrono::milliseconds dura(2000);
+
+        if(newUWBdistance)
+        {
+            newUWBdistance = false;
+
+        }
+        std::chrono::milliseconds dura(2000); // Update rate for optimization calculation (can be smaller)
         std::this_thread::sleep_for(dura);
     }
     return;
 }
-
 
 void GlobalOptimization::updateGlobalPath()
 {

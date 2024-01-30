@@ -19,9 +19,10 @@
 #include "uwb_localization_dwm/UWBrange.h"
 
 GlobalOptimization globalEstimator;
-ros::Publisher pub_global_odometry, pub_global_path, pub_car;
+ros::Publisher pub_global_odometry, pub_global_path, pub_car, pub_uwb_anchors;
 nav_msgs::Path *global_path;
 double last_vio_t = -1;
+// int anchors_number = 4;
 std::mutex m_buf;
 std::queue<geometry_msgs::PoseStamped::ConstPtr> uwbQueue; // For UWB; geometry_msgs::Vector3StampedConstPtr
 
@@ -64,7 +65,6 @@ void publish_car_model(double t, Eigen::Vector3d t_w_car, Eigen::Quaterniond q_w
     pub_car.publish(markerArray_msg);
 }
 
-
 /* For UWB localization */
 void UWB_callback(const geometry_msgs::PoseStamped::ConstPtr &UWB_msg)
 {
@@ -76,19 +76,162 @@ void UWB_callback(const geometry_msgs::PoseStamped::ConstPtr &UWB_msg)
 void UWBrange_callback(const uwb_localization_dwm::UWBrange::ConstPtr &UWBrange_msg)
 {
     m_buf.lock();
+    double t, x, y, z, dis;
+    t = UWBrange_msg->header.stamp.toSec();
+    x = UWBrange_msg->anchor_position.x;
+    y = UWBrange_msg->anchor_position.y;
+    z = UWBrange_msg->anchor_position.z;
+    dis = UWBrange_msg->distance_to_tag;
     printf("UWBrange_msg t : (x, y, z):    %f : (%f, %f, %f), distance_to_tag: %f \n",
-        UWBrange_msg->header.stamp.toSec(),
-        UWBrange_msg->anchor_position.x,
-        UWBrange_msg->anchor_position.y,
-        UWBrange_msg->anchor_position.z,
-        UWBrange_msg->distance_to_tag);
+           t, x, y, z, dis);
+    double dis_accuracy = 1; // UWB_msg->position_covariance[0];
+    if(dis_accuracy <= 0)
+        dis_accuracy = 1;
+    globalEstimator.inputUWBdistance(t, x, y, z, dis, dis_accuracy);//, &anchor_index
 
+    // int static anchors_number = 4;
+    Eigen:: Vector3d global_t;
+    Eigen:: Quaterniond global_q;
+    // Eigen:: Vector3d global_uwb_anchors[4]; // At least and total 4 anchors
+    // globalEstimator.getUWBanchors(global_t, global_q, global_uwb_anchors);
+    // int col = last_UWB_anchorsPs.cols();
+    // int row = last_UWB_anchorsPs.rows();
+    Eigen::MatrixXd global_uwb_anchors; //(row,col);// At least and total 4 anchors; anchor map
+    // Eigen::Matrix<double, 6, 4> global_uwb_anchors;
+    globalEstimator.getUWBanchors(global_t, global_q, global_uwb_anchors);
+
+    nav_msgs::Odometry uwb_anchor_odom;
+    uwb_anchor_odom.header = UWBrange_msg->header;
+    uwb_anchor_odom.header.frame_id = "world";
+    uwb_anchor_odom.child_frame_id = "world";
+    /* UWB frame to Lidar frame */
+    uwb_anchor_odom.pose.pose.position.x = global_t.x();
+    uwb_anchor_odom.pose.pose.position.y = global_t.y();
+    uwb_anchor_odom.pose.pose.position.z = global_t.z();
+    uwb_anchor_odom.pose.pose.orientation.x = global_q.x();
+    uwb_anchor_odom.pose.pose.orientation.y = global_q.y();
+    uwb_anchor_odom.pose.pose.orientation.z = global_q.z();
+    uwb_anchor_odom.pose.pose.orientation.w = global_q.w();
+    /* UWB anchors initial positions */
+    uwb_anchor_odom.twist.twist.linear.x = UWBrange_msg->anchor_position.x;
+    uwb_anchor_odom.twist.twist.linear.y = UWBrange_msg->anchor_position.y;
+    uwb_anchor_odom.twist.twist.linear.z = UWBrange_msg->anchor_position.z;
+
+    // // global_uwb_anchors.size()/global_uwb_anchors.cols()?
+    // int uwb_anchors_numbers = sizeof(global_uwb_anchors)/sizeof(global_uwb_anchors[0]);
+    // for (int i = 0; i < uwb_anchors_numbers; i++)
+    // {
+    //     /* UWB anchors estimate positions */
+    //     uwb_anchor_odom.twist.twist.angular.x = global_uwb_anchors[i].x();
+    //     uwb_anchor_odom.twist.twist.angular.y = global_uwb_anchors[i].y();
+    //     uwb_anchor_odom.twist.twist.angular.z = global_uwb_anchors[i].z();
+    //     pub_uwb_anchors.publish(uwb_anchor_odom);
+    // }
+
+    /* Coresponding UWB anchors initial positions, must already in last_UWB_anchorsPs map */
+    int anchor_i = 0;
+    int anchor_initial_pos_dimension = 3;
+    for (anchor_i = 0; anchor_i < global_uwb_anchors.cols(); anchor_i++)
+    {
+        if (norm(x - global_uwb_anchors(0,anchor_i))<0.01 &&
+            norm(y - global_uwb_anchors(1,anchor_i))<0.01 &&
+            norm(z - global_uwb_anchors(2,anchor_i))<0.01)
+            {
+                break;
+            }
+    }
+    if (anchor_i < global_uwb_anchors.cols())
+    {
+        // with respect anchors index
+        uwb_anchor_odom.twist.twist.angular.x = global_uwb_anchors(anchor_initial_pos_dimension+0,anchor_i);
+        uwb_anchor_odom.twist.twist.angular.y = global_uwb_anchors(anchor_initial_pos_dimension+1,anchor_i);
+        uwb_anchor_odom.twist.twist.angular.z = global_uwb_anchors(anchor_initial_pos_dimension+2,anchor_i);
+        pub_uwb_anchors.publish(uwb_anchor_odom);
+    }
     m_buf.unlock();
+}
+
+void vio_callback1(const nav_msgs::Odometry::ConstPtr &pose_msg)
+{
+    // //printf("vio_callback! \n");
+    // double t = pose_msg->header.stamp.toSec();
+    // last_vio_t = t;
+    // Eigen::Vector3d vio_t(pose_msg->pose.pose.position.x, pose_msg->pose.pose.position.y, pose_msg->pose.pose.position.z);
+    // Eigen::Quaterniond vio_q;
+    // vio_q.w() = pose_msg->pose.pose.orientation.w;
+    // vio_q.x() = pose_msg->pose.pose.orientation.x;
+    // vio_q.y() = pose_msg->pose.pose.orientation.y;
+    // vio_q.z() = pose_msg->pose.pose.orientation.z;
+    // globalEstimator.inputOdom(t, vio_t, vio_q);
+
+    // /* For UWB localization */
+    // m_buf.lock();
+    // while(!uwbQueue.empty())
+    // {
+    //     geometry_msgs::PoseStamped::ConstPtr UWB_msg = uwbQueue.front();
+    //     double uwb_t = UWB_msg->header.stamp.toSec();
+    //     printf("vio t: %f, uwb t: %f \n", t, uwb_t);
+    //     // 100ms sync tolerance
+    //     if(uwb_t >= t - 0.1 && uwb_t <= t + 0.1)
+    //     {
+    //         //printf("receive UWB with timestamp %f\n", UWB_msg->header.stamp.toSec());
+    //         double x = UWB_msg->pose.position.x;
+    //         double y = UWB_msg->pose.position.y;
+    //         double z = UWB_msg->pose.position.z;
+    //         double pos_accuracy = 1; // UWB_msg->position_covariance[0];
+    //         if(pos_accuracy <= 0)
+    //             pos_accuracy = 1;
+    //         //printf("receive covariance %lf \n", pos_accuracy);
+    //         //if(UWB_msg->status.status > 8)
+    //             globalEstimator.inputUWB(t, x, y, z, pos_accuracy); // Add 
+    //         uwbQueue.pop();
+    //         break;
+    //     }
+    //     else if(uwb_t < t - 0.1)
+    //         uwbQueue.pop();
+    //     else if(uwb_t > t + 0.1)
+    //         break;
+    // }
+    // m_buf.unlock();
+
+    // Eigen::Vector3d global_t;
+    // Eigen:: Quaterniond global_q;
+    // globalEstimator.getGlobalOdom(global_t, global_q);
+
+    // nav_msgs::Odometry odometry;
+    // odometry.header = pose_msg->header;
+    // odometry.header.frame_id = "world";
+    // odometry.child_frame_id = "world";
+    // odometry.pose.pose.position.x = global_t.x();
+    // odometry.pose.pose.position.y = global_t.y();
+    // odometry.pose.pose.position.z = global_t.z();
+    // odometry.pose.pose.orientation.x = global_q.x();
+    // odometry.pose.pose.orientation.y = global_q.y();
+    // odometry.pose.pose.orientation.z = global_q.z();
+    // odometry.pose.pose.orientation.w = global_q.w();
+    // pub_global_odometry.publish(odometry);
+    // pub_global_path.publish(*global_path);
+    // publish_car_model(t, global_t, global_q);
+
+    // // write result to file
+    // std::ofstream foutC("/home/liu/Downloads/output/vio_global.csv", ios::app);
+    // foutC.setf(ios::fixed, ios::floatfield);
+    // foutC.precision(0);
+    // foutC << pose_msg->header.stamp.toSec() * 1e9 << ",";
+    // foutC.precision(5);
+    // foutC << global_t.x() << ","
+    //         << global_t.y() << ","
+    //         << global_t.z() << ","
+    //         << global_q.w() << ","
+    //         << global_q.x() << ","
+    //         << global_q.y() << ","
+    //         << global_q.z() << endl;
+    // foutC.close();
 }
 
 void vio_callback(const nav_msgs::Odometry::ConstPtr &pose_msg)
 {
-    //printf("vio_callback! \n");
+    // printf("vio_callback! \n");
     double t = pose_msg->header.stamp.toSec();
     last_vio_t = t;
     Eigen::Vector3d vio_t(pose_msg->pose.pose.position.x, pose_msg->pose.pose.position.y, pose_msg->pose.pose.position.z);
@@ -99,7 +242,6 @@ void vio_callback(const nav_msgs::Odometry::ConstPtr &pose_msg)
     vio_q.z() = pose_msg->pose.pose.orientation.z;
     globalEstimator.inputOdom(t, vio_t, vio_q);
 
-
     /* For UWB localization */
     m_buf.lock();
     while(!uwbQueue.empty())
@@ -107,19 +249,19 @@ void vio_callback(const nav_msgs::Odometry::ConstPtr &pose_msg)
         geometry_msgs::PoseStamped::ConstPtr UWB_msg = uwbQueue.front();
         double uwb_t = UWB_msg->header.stamp.toSec();
         printf("vio t: %f, uwb t: %f \n", t, uwb_t);
-        // 100ms sync tolerance
-        if(uwb_t >= t - 0.1 && uwb_t <= t + 0.1)
+        // 100ms sync tolerance, sensor time synchronize
+        if(uwb_t >= t - 0.1 && uwb_t <= t + 0.1) // All UWB pose in this interval will be added
         {
-            //printf("receive UWB with timestamp %f\n", UWB_msg->header.stamp.toSec());
+            // printf("receive UWB with timestamp %f\n", UWB_msg->header.stamp.toSec());
             double x = UWB_msg->pose.position.x;
             double y = UWB_msg->pose.position.y;
             double z = UWB_msg->pose.position.z;
             double pos_accuracy = 1; // UWB_msg->position_covariance[0];
             if(pos_accuracy <= 0)
                 pos_accuracy = 1;
-            //printf("receive covariance %lf \n", pos_accuracy);
-            //if(UWB_msg->status.status > 8)
-                globalEstimator.inputUWB(t, x, y, z, pos_accuracy);
+            // printf("receive covariance %lf \n", pos_accuracy);
+            // if(UWB_msg->status.status > 8)
+                globalEstimator.inputUWB(t, x, y, z, pos_accuracy); // Add 
             uwbQueue.pop();
             break;
         }
@@ -147,22 +289,6 @@ void vio_callback(const nav_msgs::Odometry::ConstPtr &pose_msg)
     odometry.pose.pose.orientation.w = global_q.w();
     pub_global_odometry.publish(odometry);
     pub_global_path.publish(*global_path);
-    publish_car_model(t, global_t, global_q);
-
-    // write result to file
-    std::ofstream foutC("/home/liu/Downloads/output/vio_global.csv", ios::app);
-    foutC.setf(ios::fixed, ios::floatfield);
-    foutC.precision(0);
-    foutC << pose_msg->header.stamp.toSec() * 1e9 << ",";
-    foutC.precision(5);
-    foutC << global_t.x() << ","
-            << global_t.y() << ","
-            << global_t.z() << ","
-            << global_q.w() << ","
-            << global_q.x() << ","
-            << global_q.y() << ","
-            << global_q.z() << endl;
-    foutC.close();
 }
 
 int main(int argc, char **argv)
@@ -176,9 +302,11 @@ int main(int argc, char **argv)
     ros::Subscriber sub_UWBrange = n.subscribe("/dwm1001/tag/tag/to/anchor/AN0/distance", 100, UWBrange_callback);
     // ros::Subscriber sub_vio = n.subscribe("/vins_estimator/odometry", 100, vio_callback);
     ros::Subscriber sub_vio = n.subscribe("/aft_mapped_to_init_high_frec", 100, vio_callback);
-    pub_global_path = n.advertise<nav_msgs::Path>("uwb_anchors_path", 100);
-    pub_global_odometry = n.advertise<nav_msgs::Odometry>("uwb_anchors_odometry", 100);
+    pub_global_path = n.advertise<nav_msgs::Path>("uwb_global_path", 100);
+    pub_global_odometry = n.advertise<nav_msgs::Odometry>("uwb_global_odometry", 100);
+    pub_uwb_anchors = n.advertise<nav_msgs::Odometry>("uwb_anchors_position", 100);
     pub_car = n.advertise<visualization_msgs::MarkerArray>("lidar_car_model", 1000);
+
     ros::spin();
     return 0;
 }

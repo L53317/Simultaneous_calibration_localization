@@ -12,9 +12,9 @@ void QuaternionInverse(const T q[4], T q_inverse[4])
     q_inverse[3] = -q[3];
 };
 
-
 struct TError
 {
+    /* Factor of global constraints. */
     TError(double t_x, double t_y, double t_z, double var)
                   :t_x(t_x), t_y(t_y), t_z(t_z), var(var){}
 
@@ -28,20 +28,18 @@ struct TError
         return true;
     }
 
-    static ceres::CostFunction* Create(const double t_x, const double t_y, const double t_z, const double var) 
+    static ceres::CostFunction* Create(const double t_x, const double t_y, const double t_z, const double var)
     {
-      return (new ceres::AutoDiffCostFunction<
-              TError, 3, 3>(
-                  new TError(t_x, t_y, t_z, var)));
+      return (new ceres::AutoDiffCostFunction<TError, 3, 3> (new TError(t_x, t_y, t_z, var)));
     }
 
     double t_x, t_y, t_z, var;
-
 };
 
 struct RelativeRTError
 {
-    RelativeRTError(double t_x, double t_y, double t_z, 
+    /* Factor from one pose to next pose, between two poses. */
+    RelativeRTError(double t_x, double t_y, double t_z,
                     double q_w, double q_x, double q_y, double q_z,
                     double t_var, double q_var)
                   :t_x(t_x), t_y(t_y), t_z(t_z), 
@@ -79,7 +77,7 @@ struct RelativeRTError
         QuaternionInverse(relative_q, relative_q_inv);
 
         T error_q[4];
-        ceres::QuaternionProduct(relative_q_inv, q_i_j, error_q); 
+        ceres::QuaternionProduct(relative_q_inv, q_i_j, error_q);
 
         residuals[3] = T(2) * error_q[1] / T(q_var);
         residuals[4] = T(2) * error_q[2] / T(q_var);
@@ -92,13 +90,11 @@ struct RelativeRTError
                                        const double q_w, const double q_x, const double q_y, const double q_z,
                                        const double t_var, const double q_var) 
     {
-      return (new ceres::AutoDiffCostFunction<
-              RelativeRTError, 6, 4, 3, 4, 3>(
-                  new RelativeRTError(t_x, t_y, t_z, q_w, q_x, q_y, q_z, t_var, q_var)));
+      return (new ceres::AutoDiffCostFunction< RelativeRTError, 6, 4, 3, 4, 3>
+                (new RelativeRTError(t_x, t_y, t_z, q_w, q_x, q_y, q_z, t_var, q_var)));
     }
 
     double t_x, t_y, t_z, t_norm;
     double q_w, q_x, q_y, q_z;
     double t_var, q_var;
-
 };
