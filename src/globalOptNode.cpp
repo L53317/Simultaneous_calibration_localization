@@ -15,7 +15,10 @@
 #include <queue>
 #include <mutex>
 
-/* Inlcude a UWB message building for UWB data. */
+/* Inlcude a UWB message building for UWB data.
+   To use official message, maybe replace it with a path having two (or more) poses.
+ */
+
 #include "uwb_localization_dwm/UWBrange.h"
 
 GlobalOptimization globalEstimator;
@@ -25,6 +28,7 @@ double last_vio_t = -1;
 // int anchors_number = 4;
 std::mutex m_buf;
 std::queue<geometry_msgs::PoseStamped::ConstPtr> uwbQueue; // For UWB; geometry_msgs::Vector3StampedConstPtr
+std::queue<uwb_localization_dwm::UWBrange::ConstPtr> uwbRangeQueue;
 
 void publish_car_model(double t, Eigen::Vector3d t_w_car, Eigen::Quaterniond q_w_car)
 {
@@ -84,18 +88,18 @@ void UWBrange_callback(const uwb_localization_dwm::UWBrange::ConstPtr &UWBrange_
     dis = UWBrange_msg->distance_to_tag;
     printf("UWBrange_msg t : (x, y, z):    %f : (%f, %f, %f), distance_to_tag: %f \n",
            t, x, y, z, dis);
-    double dis_accuracy = 1; // UWB_msg->position_covariance[0];
-    if(dis_accuracy <= 0)
-        dis_accuracy = 1;
-    globalEstimator.inputUWBdistance(t, x, y, z, dis, dis_accuracy);//, &anchor_index
+    uwbRangeQueue.push(UWBrange_msg);
 
+    // double dis_accuracy = 1; // UWBrange_msg->position_covariance[0];
+    // if(dis_accuracy <= 0)
+    //     dis_accuracy = 1;
+    // globalEstimator.inputUWBdistance(t, x, y, z, dis, dis_accuracy);//, &anchor_index
+
+    /* Get anchors' positions and pushblish */
     // int static anchors_number = 4;
     Eigen:: Vector3d global_t;
     Eigen:: Quaterniond global_q;
     // Eigen:: Vector3d global_uwb_anchors[4]; // At least and total 4 anchors
-    // globalEstimator.getUWBanchors(global_t, global_q, global_uwb_anchors);
-    // int col = last_UWB_anchorsPs.cols();
-    // int row = last_UWB_anchorsPs.rows();
     Eigen::MatrixXd global_uwb_anchors; //(row,col);// At least and total 4 anchors; anchor map
     // Eigen::Matrix<double, 6, 4> global_uwb_anchors;
     globalEstimator.getUWBanchors(global_t, global_q, global_uwb_anchors);
@@ -117,37 +121,33 @@ void UWBrange_callback(const uwb_localization_dwm::UWBrange::ConstPtr &UWBrange_
     uwb_anchor_odom.twist.twist.linear.y = UWBrange_msg->anchor_position.y;
     uwb_anchor_odom.twist.twist.linear.z = UWBrange_msg->anchor_position.z;
 
-    // // global_uwb_anchors.size()/global_uwb_anchors.cols()?
-    // int uwb_anchors_numbers = sizeof(global_uwb_anchors)/sizeof(global_uwb_anchors[0]);
-    // for (int i = 0; i < uwb_anchors_numbers; i++)
-    // {
-    //     /* UWB anchors estimate positions */
-    //     uwb_anchor_odom.twist.twist.angular.x = global_uwb_anchors[i].x();
-    //     uwb_anchor_odom.twist.twist.angular.y = global_uwb_anchors[i].y();
-    //     uwb_anchor_odom.twist.twist.angular.z = global_uwb_anchors[i].z();
-    //     pub_uwb_anchors.publish(uwb_anchor_odom);
-    // }
-
     /* Coresponding UWB anchors initial positions, must already in last_UWB_anchorsPs map */
     int anchor_i = 0;
     int anchor_initial_pos_dimension = 3;
+    bool find_anchor = false;
     for (anchor_i = 0; anchor_i < global_uwb_anchors.cols(); anchor_i++)
     {
         if (norm(x - global_uwb_anchors(0,anchor_i))<0.01 &&
             norm(y - global_uwb_anchors(1,anchor_i))<0.01 &&
             norm(z - global_uwb_anchors(2,anchor_i))<0.01)
             {
+                find_anchor =true;
                 break;
             }
     }
-    if (anchor_i < global_uwb_anchors.cols())
+    if (find_anchor && global_uwb_anchors.cols() !=0) // No need !=0.
     {
         // with respect anchors index
         uwb_anchor_odom.twist.twist.angular.x = global_uwb_anchors(anchor_initial_pos_dimension+0,anchor_i);
         uwb_anchor_odom.twist.twist.angular.y = global_uwb_anchors(anchor_initial_pos_dimension+1,anchor_i);
         uwb_anchor_odom.twist.twist.angular.z = global_uwb_anchors(anchor_initial_pos_dimension+2,anchor_i);
         pub_uwb_anchors.publish(uwb_anchor_odom);
+        /* The anchors' distance topics are not in propoer sequence.
+           Need to determine a propoer ROS rate Or time synchrony.
+         */
+        // printf("Anchor index: %d,  UWB anchor number: %ld \n", anchor_i ,global_uwb_anchors.cols());
     }
+
     m_buf.unlock();
 }
 
@@ -250,7 +250,9 @@ void vio_callback(const nav_msgs::Odometry::ConstPtr &pose_msg)
         double uwb_t = UWB_msg->header.stamp.toSec();
         printf("vio t: %f, uwb t: %f \n", t, uwb_t);
         // 100ms sync tolerance, sensor time synchronize
-        if(uwb_t >= t - 0.1 && uwb_t <= t + 0.1) // All UWB pose in this interval will be added
+         /* Search all UWB pose in this interval.
+            Note, only the newest will be added (C++, Map, []). */
+        if(uwb_t >= t - 0.1 && uwb_t <= t + 0.1)
         {
             // printf("receive UWB with timestamp %f\n", UWB_msg->header.stamp.toSec());
             double x = UWB_msg->pose.position.x;
@@ -261,7 +263,7 @@ void vio_callback(const nav_msgs::Odometry::ConstPtr &pose_msg)
                 pos_accuracy = 1;
             // printf("receive covariance %lf \n", pos_accuracy);
             // if(UWB_msg->status.status > 8)
-                globalEstimator.inputUWB(t, x, y, z, pos_accuracy); // Add 
+                globalEstimator.inputUWB(t, x, y, z, pos_accuracy); // Add UWB poses with vio t
             uwbQueue.pop();
             break;
         }
@@ -272,23 +274,34 @@ void vio_callback(const nav_msgs::Odometry::ConstPtr &pose_msg)
     }
     m_buf.unlock();
 
-    Eigen::Vector3d global_t;
-    Eigen:: Quaterniond global_q;
-    globalEstimator.getGlobalOdom(global_t, global_q);
+    m_buf.lock();
+    while(!uwbRangeQueue.empty())
+    {
+        uwb_localization_dwm::UWBrange::ConstPtr UWBRange_msg = uwbRangeQueue.front();
+        double uwbrange_t = UWBRange_msg->header.stamp.toSec();
+         /* Search all UWB distance in this interval.
+            Note, only the newest will be added (C++, Map, []). */
+        if(uwbrange_t >= t - 0.1 && uwbrange_t <= t + 0.1)
+        {
+            double x = UWBRange_msg->anchor_position.x;
+            double y = UWBRange_msg->anchor_position.y;
+            double z = UWBRange_msg->anchor_position.z;
+            double dis = UWBRange_msg->distance_to_tag;
+            double dis_accuracy = 1; // UWBRange_msg->position_covariance[0];
+            if(dis_accuracy <= 0)
+                {dis_accuracy = 1;}
+            globalEstimator.inputUWBdistance(t, x, y, z, dis, dis_accuracy);//, &anchor_index
 
-    nav_msgs::Odometry odometry;
-    odometry.header = pose_msg->header;
-    odometry.header.frame_id = "world";
-    odometry.child_frame_id = "world";
-    odometry.pose.pose.position.x = global_t.x();
-    odometry.pose.pose.position.y = global_t.y();
-    odometry.pose.pose.position.z = global_t.z();
-    odometry.pose.pose.orientation.x = global_q.x();
-    odometry.pose.pose.orientation.y = global_q.y();
-    odometry.pose.pose.orientation.z = global_q.z();
-    odometry.pose.pose.orientation.w = global_q.w();
-    pub_global_odometry.publish(odometry);
-    pub_global_path.publish(*global_path);
+            uwbRangeQueue.pop();
+            break;
+        }
+        else if(uwbrange_t < t - 0.1)
+            uwbRangeQueue.pop();
+        else if(uwbrange_t > t + 0.1)
+            break;
+    }
+    m_buf.unlock();
+
 }
 
 int main(int argc, char **argv)

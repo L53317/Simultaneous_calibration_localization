@@ -26,16 +26,25 @@ public:
     // void getUWBanchors(Eigen::Vector3d &odomP, Eigen::Quaterniond &odomQ, Eigen::Vector3d (&anchorP)[4]);
     void getUWBanchors(Eigen::Vector3d &odomP, Eigen::Quaterniond &odomQ, Eigen::MatrixXd &anchorP);
     nav_msgs::Path global_path;
+    // /* UWB anchor map store in poses of a path:
+    //    pose.position: anchor estimate position;
+    //    pose.orientation: anchor initial position.
+    //  */
+    // nav_msgs::Path UWB_anchor_Map;
 
 private:
     void optimize();
     void updateGlobalPath();
+    void updateAnchorMap();
 
     // format t, tx,ty,tz,qw,qx,qy,qz
     map<double, vector<double>> localPoseMap; // vio poses
     map<double, vector<double>> globalPoseMap; // optimization poses
     map<double, vector<double>> UWBPositionMap; // UWB poses
-    map<double, vector<double>> UWBDistanceMap; // should have 4 (anchor number) map, or 4 columns
+
+    // map<double, vector<double>> UWBDistanceMap; // should have 4 (anchor number) map, or 4 columns
+    map<double, vector<double>> globalAnchorMap; // Anchor map with distances
+
     bool newUWB;
     bool newUWBdistance;
     std::mutex mPoseMap;

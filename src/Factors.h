@@ -19,6 +19,7 @@ struct TError
                   :t_x(t_x), t_y(t_y), t_z(t_z), var(var){}
 
     template <typename T>
+    /* Overload () for members. */
     bool operator()(const T* tj, T* residuals) const
     {
         residuals[0] = (tj[0] - T(t_x)) / T(var);
@@ -29,7 +30,7 @@ struct TError
     }
 
     static ceres::CostFunction* Create(const double t_x, const double t_y, const double t_z, const double var)
-    {
+    { /* <type, residual dimension(res_d), input_d> */
       return (new ceres::AutoDiffCostFunction<TError, 3, 3> (new TError(t_x, t_y, t_z, var)));
     }
 
@@ -90,6 +91,7 @@ struct RelativeRTError
                                        const double q_w, const double q_x, const double q_y, const double q_z,
                                        const double t_var, const double q_var) 
     {
+      /* <type, residual dimension(res_d), input_q_d, input_t_d, input_q_d, input_t_d> */
       return (new ceres::AutoDiffCostFunction< RelativeRTError, 6, 4, 3, 4, 3>
                 (new RelativeRTError(t_x, t_y, t_z, q_w, q_x, q_y, q_z, t_var, q_var)));
     }
@@ -97,4 +99,39 @@ struct RelativeRTError
     double t_x, t_y, t_z, t_norm;
     double q_w, q_x, q_y, q_z;
     double t_var, q_var;
+};
+
+struct DError
+{
+    /* Factor of global constraints.
+       t_x, t_y, t_z, distance, var: the measurments (or observation with measurment)
+     */
+    DError(double t_x, double t_y, double t_z, double distance, double var)
+                  :t_x(t_x), t_y(t_y), t_z(t_z), distance(distance), var(var){}
+
+    template <typename T>
+    /* Overload () for members.
+       tj: the (first) optimization variable array;
+       residuals: the output (difference).
+     */
+    bool operator()(const T* tj, T* residuals) const
+    {
+        // residuals[0] = (tj[0] - T(t_x)) / T(var);
+        // residuals[1] = (tj[1] - T(t_y)) / T(var);
+        // residuals[2] = (tj[2] - T(t_z)) / T(var);
+        residuals[0] = (sqrt((tj[0] - T(t_x)) * (tj[0] - T(t_x)) +
+                             (tj[1] - T(t_y)) * (tj[1] - T(t_y)) +
+                             (tj[2] - T(t_z)) * (tj[2] - T(t_z))) - T(distance)) / T(var);
+        /* Must be manifold? Or may not converge. */
+
+        return true;
+    }
+
+    static ceres::CostFunction* Create(const double t_x, const double t_y, const double t_z,
+                                       const double distance, const double var)
+    {
+      return (new ceres::AutoDiffCostFunction<DError, 1, 4> (new DError(t_x, t_y, t_z, distance, var)));
+    }
+
+    double t_x, t_y, t_z, distance, var;
 };
