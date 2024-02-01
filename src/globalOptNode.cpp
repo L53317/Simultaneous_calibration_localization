@@ -302,6 +302,24 @@ void vio_callback(const nav_msgs::Odometry::ConstPtr &pose_msg)
     }
     m_buf.unlock();
 
+    Eigen::Vector3d global_t;
+    Eigen:: Quaterniond global_q;
+    globalEstimator.getGlobalOdom(global_t, global_q);
+
+    nav_msgs::Odometry odometry;
+    odometry.header = pose_msg->header;
+    odometry.header.frame_id = "world";
+    odometry.child_frame_id = "world";
+    odometry.pose.pose.position.x = global_t.x();
+    odometry.pose.pose.position.y = global_t.y();
+    odometry.pose.pose.position.z = global_t.z();
+    odometry.pose.pose.orientation.x = global_q.x();
+    odometry.pose.pose.orientation.y = global_q.y();
+    odometry.pose.pose.orientation.z = global_q.z();
+    odometry.pose.pose.orientation.w = global_q.w();
+    pub_global_odometry.publish(odometry);
+    pub_global_path.publish(*global_path);
+    publish_car_model(t, global_t, global_q);
 }
 
 int main(int argc, char **argv)

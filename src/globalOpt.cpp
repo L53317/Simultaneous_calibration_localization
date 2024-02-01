@@ -295,7 +295,9 @@ void GlobalOptimization::optimize()
                             iterUWBAnchor->second[6], iterUWBAnchor->second[7]);
                             // TODO: Add constant condiction of anchor position ! ******** ! //
                         printf("UWB anchor optimization: %s(%d): \n" ,__FILE__, __LINE__);
-                        problem.AddResidualBlock(uwbrange_function, loss_function_anchors, p_array[i]);
+                        // problem.AddResidualBlock(uwbrange_function, loss_function_anchors, p_array[i]);
+                        double tmp[3] = {p_array[i][0],p_array[i][1],p_array[i][2]};
+                        problem.AddResidualBlock(uwbrange_function, loss_function_anchors, tmp);
                         printf("UWB anchor optimization: %s(%d): \n" ,__FILE__, __LINE__);
                     }
                 }
