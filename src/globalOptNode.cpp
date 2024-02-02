@@ -335,7 +335,7 @@ int main(int argc, char **argv)
     ros::Subscriber sub_vio = n.subscribe("/aft_mapped_to_init_high_frec", 100, vio_callback);
     pub_global_path = n.advertise<nav_msgs::Path>("uwb_global_path", 100);
     pub_global_odometry = n.advertise<nav_msgs::Odometry>("uwb_global_odometry", 100);
-    pub_uwb_anchors = n.advertise<nav_msgs::Odometry>("uwb_anchors_position", 100);
+    pub_uwb_anchors = n.advertise<nav_msgs::Odometry>("uwb_map_anchors_position", 100);
     pub_car = n.advertise<visualization_msgs::MarkerArray>("lidar_car_model", 1000);
 
     ros::spin();

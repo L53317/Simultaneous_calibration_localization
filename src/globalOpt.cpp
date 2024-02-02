@@ -84,12 +84,12 @@ void GlobalOptimization::inputUWB(double t, double x, double y, double z, double
 void GlobalOptimization::inputUWBdistance(double t, double x, double y, double z,
     double distance, double disAccuracy)
 {
-    vector<double> tmp{x, y, z, distance, disAccuracy};
+    // vector<double> tmp{x, y, z, distance, disAccuracy};
     // // printf("new uwb: t: %f x: %f y: %f z:%f \n", t, tmp[0], tmp[1], tmp[2]);
     // UWBDistanceMap[t] = tmp;
 
-    vector<double> tmp2{x, y, z, x, y, z, distance, disAccuracy};
-    globalAnchorMap[t]= tmp2; // better to use last estimate as [3]-[5]
+    // vector<double> tmp2{x, y, z, x, y, z, distance, disAccuracy};
+    // globalAnchorMap[t]= tmp2; // better to use last estimate as [3]-[5]
 
     /* Which UWB anchors, to update last_UWB_anchorsPs map. */
     int anchor_i = 0;
@@ -100,28 +100,34 @@ void GlobalOptimization::inputUWBdistance(double t, double x, double y, double z
             norm(y - last_UWB_anchorsPs(1,anchor_i))<0.01 &&
             norm(z - last_UWB_anchorsPs(2,anchor_i))<0.01)
             {
+                vector<double> tmp2{x, y, z,
+                                    last_UWB_anchorsPs(0,anchor_i),
+                                    last_UWB_anchorsPs(1,anchor_i),
+                                    last_UWB_anchorsPs(2,anchor_i),
+                                    distance, disAccuracy};
+                globalAnchorMap[t]= tmp2; // Use last estimate as [3]-[5]
                 find_anchor = true;
                 break;
             }
     }
 
-    // No need update last_UWB_anchorsPs in this context.
-    if (find_anchor)
-    {
-        /* Update coresponding anchors estimation with the newest position. */
-        map<double, vector<double>>::reverse_iterator iter;
-        for (iter = globalAnchorMap.rbegin(); iter != globalAnchorMap.rend(); iter++)
-        {
-            if (norm(x - iter->second[0])<0.01 &&
-                norm(y - iter->second[1])<0.01 &&
-                norm(z - iter->second[2])<0.01)
-            {
-                last_UWB_anchorsPs(3,anchor_i)= iter->second[3];
-                last_UWB_anchorsPs(4,anchor_i)= iter->second[4];
-                last_UWB_anchorsPs(5,anchor_i)= iter->second[5];
-            }
-        }
-    }
+    // /* No need update last_UWB_anchorsPs in this context. */
+    // if (find_anchor)
+    // {
+    //     /* Update coresponding anchors estimation with the newest position. */
+    //     map<double, vector<double>>::reverse_iterator iter;
+    //     for (iter = globalAnchorMap.rbegin(); iter != globalAnchorMap.rend(); iter++)
+    //     {
+    //         if (norm(x - iter->second[0])<0.01 &&
+    //             norm(y - iter->second[1])<0.01 &&
+    //             norm(z - iter->second[2])<0.01)
+    //         {
+    //             last_UWB_anchorsPs(3,anchor_i)= iter->second[3];
+    //             last_UWB_anchorsPs(4,anchor_i)= iter->second[4];
+    //             last_UWB_anchorsPs(5,anchor_i)= iter->second[5];
+    //         }
+    //     }
+    // }
 
      /* Add a new anchor to anchor map. */
     // if (anchor_i >= last_UWB_anchorsPs.cols()) // Only equivalent will exist.
@@ -146,9 +152,8 @@ void GlobalOptimization::inputUWBdistance(double t, double x, double y, double z
         last_UWB_anchorsPs(4,anchor_i)= y;
         last_UWB_anchorsPs(5,anchor_i)= z;
 
-        // vector<double> tmp2{x, y, z, x, y, z, distance, disAccuracy};
-        // globalAnchorMap[t]= tmp2; // better to use last estimate as [3]-[5]
-
+        vector<double> tmp2{x, y, z, x, y, z, distance, disAccuracy};
+        globalAnchorMap[t]= tmp2; // better to use last estimate as [3]-[5]
     }
 
     newUWBdistance = true;
@@ -209,21 +214,15 @@ void GlobalOptimization::optimize()
                 int lengthAnchorMap = globalAnchorMap.size(); // TODO same with global pose sizes.
                 // UWBDistanceMap
                 map<double, vector<double>>::iterator iterAnchor;
-                printf("UWB anchor optimization: %s(%d): \n" ,__FILE__, __LINE__);
                 iterAnchor = globalAnchorMap.begin();
-                printf("UWB anchor globalAnchorMap size: %d: \n", globalAnchorMap.size());
                 for (int i = 0; i < lengthAnchorMap; i++, iterAnchor++) // TODO
                 {
-                    printf("UWB anchor optimization: %s(%d): \n" ,__FILE__, __LINE__);
                     p_array[i][0] = iterAnchor->second[3];
                     p_array[i][1] = iterAnchor->second[4];
                     p_array[i][2] = iterAnchor->second[5];
                     problem.AddParameterBlock(p_array[i], 3);
-                    printf("UWB anchor optimization: %s(%d): \n" ,__FILE__, __LINE__);
                 }
-                printf("UWB anchor optimization: %s(%d): \n" ,__FILE__, __LINE__);
             }
-            printf("UWB anchor optimization: %s(%d): \n" ,__FILE__, __LINE__);
 
             map<double, vector<double>>::iterator iterVIO, iterVIONext, iterUWB;
 
@@ -267,7 +266,6 @@ void GlobalOptimization::optimize()
                 }
             }
 
-            printf("UWB anchor optimization: %s(%d): \n" ,__FILE__, __LINE__);
             printf("UWB anchor globalAnchorMap size: %d; globalPoseMap size: %d; localPoseMap size: %d \n", 
                    globalAnchorMap.size(), globalPoseMap.size(), localPoseMap.size());
             /* Add UWB range factor */
@@ -284,7 +282,6 @@ void GlobalOptimization::optimize()
                     // iterUWBrange = UWBDistanceMap.find(t); // Find UWB poses with the same t
                     // if (iterUWBrange != UWBDistanceMap.end())
                     // TODO: globalPoseMap may not have same length and may not with same position.
-                    printf("UWB anchor optimization: %s(%d): \n" ,__FILE__, __LINE__);
                     if (iterUWBAnchor != globalAnchorMap.end() && iterGlobal != globalPoseMap.end())
                     {   /* UWB cost functions, and the mearsurements . */
                         ceres::CostFunction* uwbrange_function = DError::Create(
@@ -294,11 +291,9 @@ void GlobalOptimization::optimize()
                             // iterUWBrange->second[3], iterUWBrange->second[4]);
                             iterUWBAnchor->second[6], iterUWBAnchor->second[7]);
                             // TODO: Add constant condiction of anchor position ! ******** ! //
-                        printf("UWB anchor optimization: %s(%d): \n" ,__FILE__, __LINE__);
                         // problem.AddResidualBlock(uwbrange_function, loss_function_anchors, p_array[i]);
                         double tmp[3] = {p_array[i][0],p_array[i][1],p_array[i][2]};
                         problem.AddResidualBlock(uwbrange_function, loss_function_anchors, tmp);
-                        printf("UWB anchor optimization: %s(%d): \n" ,__FILE__, __LINE__);
                     }
                 }
             }
@@ -345,7 +340,6 @@ void GlobalOptimization::optimize()
                     iterUWBrange->second = uwbAnchorPosition; // save the solved global poses
                 }
             }
-            printf("UWB anchor optimization: %s(%d): \n" ,__FILE__, __LINE__);
             updateAnchorMap();
 
             printf("UWB anchor optimization: %s(%d): \n" ,__FILE__, __LINE__);
