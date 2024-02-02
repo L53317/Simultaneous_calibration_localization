@@ -251,7 +251,7 @@ void GlobalOptimization::optimize()
                                                                                 iQj.w(), iQj.x(), iQj.y(), iQj.z(),
                                                                                 0.1, 0.01);
                     /* Add VIO relative (R,T) error. NULL: using identity loss function. */
-                    problem.AddResidualBlock(vio_function, NULL, q_array[i], t_array[i], q_array[i+1],t_array[i+1]);
+                    problem.AddResidualBlock(vio_function, NULL, q_array[i], t_array[i], q_array[i+1], t_array[i+1]);
                 }
 
                 /* Add UWB factor using UWB position measurements */

@@ -130,7 +130,8 @@ struct DError
     static ceres::CostFunction* Create(const double t_x, const double t_y, const double t_z,
                                        const double distance, const double var)
     {
-      return (new ceres::AutoDiffCostFunction<DError, 1, 4> (new DError(t_x, t_y, t_z, distance, var)));
+      /* input parameters x: {tj[0],tj[1],tj[2]}; not {tj[0],tj[1],tj[2], distance} */
+      return (new ceres::AutoDiffCostFunction<DError, 1, 3> (new DError(t_x, t_y, t_z, distance, var)));
     }
 
     double t_x, t_y, t_z, distance, var;
