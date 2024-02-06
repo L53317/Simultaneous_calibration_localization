@@ -175,8 +175,9 @@ void GlobalOptimization::optimize()
             options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
             //options.minimizer_progress_to_stdout = true;
             //options.max_solver_time_in_seconds = SOLVER_TIME * 3;
-            options.max_num_iterations = 5;
+            options.max_num_iterations = 10; // 5;
             ceres::Solver::Summary summary;
+            // ceres::LossFunction *loss_function;
             ceres::LossFunction *loss_function, *loss_function_anchors;
             loss_function = new ceres::HuberLoss(1.0);
             loss_function_anchors = new ceres::HuberLoss(1.0);
@@ -325,7 +326,7 @@ void GlobalOptimization::optimize()
                                                                         globalPose[5], globalPose[6]).toRotationMatrix();
                     WUWB_T_body.block<3, 1>(0, 3) = Eigen::Vector3d(globalPose[0], globalPose[1], globalPose[2]);
                     WUWB_T_WVIO = WUWB_T_body * WVIO_T_body.inverse();
-                    std::cout << WUWB_T_WVIO << "\n";
+                    std::cout << "WUWB_T_WVIO:" << "\n" << WUWB_T_WVIO << "\n";
                 }
             }
             updateGlobalPath();
@@ -357,6 +358,7 @@ void GlobalOptimization::optimize()
             // printf("UWB anchor map: %d, %d, %d: \n" ,p_array[globalAnchorMap.size()-1][0],
             //                                          p_array[globalAnchorMap.size()-1][1],
             //                                          p_array[globalAnchorMap.size()-1][2]);
+
             // printf("global time %f \n", globalOptimizationTime.toc());
             mPoseMap.unlock();
         }
@@ -370,7 +372,7 @@ void GlobalOptimization::optimize()
         //     ceres::Problem problem;
         //     ceres::Solver::Options options;
         //     options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
-        //     options.max_num_iterations = 5;
+        //     options.max_num_iterations = 10;
         //     ceres::Solver::Summary summary;
         //     ceres::LossFunction *loss_function_anchors;
         //     loss_function_anchors = new ceres::HuberLoss(1.0);
@@ -443,7 +445,8 @@ void GlobalOptimization::optimize()
         //     mPoseMap.unlock();
         // }
 
-        std::chrono::milliseconds dura(2000); // Update rate for optimization calculation (can be smaller)
+        /*  Update rate for optimization calculation (2000; can be smaller if the parameters are manifolds and fast enough). */
+        std::chrono::milliseconds dura(3000); // Should be bigger as the distance is not a manifolds and ill-condiction in z.
         std::this_thread::sleep_for(dura);
     }
     return;
@@ -493,5 +496,5 @@ void GlobalOptimization::updateAnchorMap()
             }
         }
     }
-    std::cout << last_UWB_anchorsPs << "\n";
+    cout << "last UWB anchors map:" << "\n" << last_UWB_anchorsPs << "\n";
 }
