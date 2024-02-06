@@ -86,8 +86,8 @@ void UWBrange_callback(const uwb_localization_dwm::UWBrange::ConstPtr &UWBrange_
     y = UWBrange_msg->anchor_position.y;
     z = UWBrange_msg->anchor_position.z;
     dis = UWBrange_msg->distance_to_tag;
-    printf("UWBrange_msg t : (x, y, z):    %f : (%f, %f, %f), distance_to_tag: %f \n",
-           t, x, y, z, dis);
+    // printf("UWBrange_msg t : (x, y, z):    %f : (%f, %f, %f), distance_to_tag: %f \n",
+    //        t, x, y, z, dis);
     uwbRangeQueue.push(UWBrange_msg);
 
     // double dis_accuracy = 1; // UWBrange_msg->position_covariance[0];
@@ -135,6 +135,7 @@ void UWBrange_callback(const uwb_localization_dwm::UWBrange::ConstPtr &UWBrange_
                 break;
             }
     }
+
     if (find_anchor && global_uwb_anchors.cols() !=0) // No need !=0.
     {
         // with respect anchors index
@@ -149,6 +150,21 @@ void UWBrange_callback(const uwb_localization_dwm::UWBrange::ConstPtr &UWBrange_
     }
 
     m_buf.unlock();
+
+    // // write result to file
+    // std::ofstream foutC("/home/liu/Downloads/output/uwb_map.csv", ios::app);
+    // foutC.setf(ios::fixed, ios::floatfield);
+    // foutC.precision(0);
+    // foutC << pose_msg->header.stamp.toSec() * 1e9 << ",";
+    // foutC.precision(5);
+    // foutC << global_t.x() << ","
+    //         << global_t.y() << ","
+    //         << global_t.z() << ","
+    //         << global_q.w() << ","
+    //         << global_q.x() << ","
+    //         << global_q.y() << ","
+    //         << global_q.z() << endl;
+    // foutC.close();
 }
 
 void vio_callback1(const nav_msgs::Odometry::ConstPtr &pose_msg)
@@ -330,7 +346,15 @@ int main(int argc, char **argv)
     global_path = &globalEstimator.global_path;
 
     ros::Subscriber sub_UWB = n.subscribe("/uwb/localization/tag/hr_position", 100, UWB_callback);
-    ros::Subscriber sub_UWBrange = n.subscribe("/dwm1001/tag/tag/to/anchor/AN0/distance", 100, UWBrange_callback);
+    // for (int i = 0; i < 4; i++)
+    // {
+    //     string uwb_range_topic = "/dwm1001/tag/tag/to/anchor/AN"+to_string(i)+"/distance";
+    // }
+    // ros::Subscriber sub_UWBRange0 = n.subscribe("/dwm1001/tag/tag/to/anchor/AN0/distance", 100, boost::bind(&UWBrange_callback, _1, "AN0"));
+    ros::Subscriber sub_UWBRange0 = n.subscribe("/dwm1001/tag/tag/to/anchor/AN0/distance", 100, UWBrange_callback);
+    ros::Subscriber sub_UWBRange1 = n.subscribe("/dwm1001/tag/tag/to/anchor/AN1/distance", 100, UWBrange_callback);
+    ros::Subscriber sub_UWBRange2 = n.subscribe("/dwm1001/tag/tag/to/anchor/AN2/distance", 100, UWBrange_callback);
+    ros::Subscriber sub_UWBRange3 = n.subscribe("/dwm1001/tag/tag/to/anchor/AN3/distance", 100, UWBrange_callback);
     // ros::Subscriber sub_vio = n.subscribe("/vins_estimator/odometry", 100, vio_callback);
     ros::Subscriber sub_vio = n.subscribe("/aft_mapped_to_init_high_frec", 100, vio_callback);
     pub_global_path = n.advertise<nav_msgs::Path>("uwb_global_path", 100);

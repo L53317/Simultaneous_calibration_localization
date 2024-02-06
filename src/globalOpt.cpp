@@ -215,12 +215,14 @@ void GlobalOptimization::optimize()
                 // UWBDistanceMap
                 map<double, vector<double>>::iterator iterAnchor;
                 iterAnchor = globalAnchorMap.begin();
-                for (int i = 0; i < lengthAnchorMap; i++, iterAnchor++) // TODO
+                for (int i = 0; iterAnchor != globalAnchorMap.end(); i++, iterAnchor++) // TODO
                 {
                     p_array[i][0] = iterAnchor->second[3];
                     p_array[i][1] = iterAnchor->second[4];
                     p_array[i][2] = iterAnchor->second[5];
                     problem.AddParameterBlock(p_array[i], 3);
+                    // std::cout << p_array[i][0]<< ","<<p_array[i][1]<< ","<<p_array[i][2] << "\n";
+                    // std::cout << iterAnchor->second[3]<< ","<<iterAnchor->second[4]<< ","<<iterAnchor->second[5] << "\n";
                 }
             }
 
@@ -271,9 +273,10 @@ void GlobalOptimization::optimize()
             /* Add UWB range factor */
             if(newUWBdistance && (globalAnchorMap.size() > 0))
             {
-                map<double, vector<double>>::iterator iterUWBrange;
+                map<double, vector<double>>::iterator iterUWBrange; // , iterGlobal;
                 int i = 0;
                 for (iterVIO = localPoseMap.begin(); iterVIO != localPoseMap.end(); iterVIO++, i++)
+                // for (iterGlobal = globalPoseMap.begin(); iterGlobal != globalPoseMap.end(); iterGlobal++, i++)
                 {
                     double t = iterVIO->first;
                     map<double, vector<double>>::iterator iterGlobal, iterUWBAnchor;
@@ -291,9 +294,9 @@ void GlobalOptimization::optimize()
                             // iterUWBrange->second[3], iterUWBrange->second[4]);
                             iterUWBAnchor->second[6], iterUWBAnchor->second[7]);
                             // TODO: Add constant condiction of anchor position ! ******** ! //
-                        // problem.AddResidualBlock(uwbrange_function, loss_function_anchors, p_array[i]);
-                        double tmp[3] = {p_array[i][0],p_array[i][1],p_array[i][2]};
-                        problem.AddResidualBlock(uwbrange_function, loss_function_anchors, tmp);
+                        problem.AddResidualBlock(uwbrange_function, loss_function_anchors, p_array[i]);
+                        // double tmp[3] = {p_array[i][0],p_array[i][1],p_array[i][2]};
+                        // problem.AddResidualBlock(uwbrange_function, loss_function_anchors, tmp);
                     }
                 }
             }
@@ -322,6 +325,7 @@ void GlobalOptimization::optimize()
                                                                         globalPose[5], globalPose[6]).toRotationMatrix();
                     WUWB_T_body.block<3, 1>(0, 3) = Eigen::Vector3d(globalPose[0], globalPose[1], globalPose[2]);
                     WUWB_T_WVIO = WUWB_T_body * WVIO_T_body.inverse();
+                    std::cout << WUWB_T_WVIO << "\n";
                 }
             }
             updateGlobalPath();
@@ -331,18 +335,28 @@ void GlobalOptimization::optimize()
             if(newUWBdistance && (globalAnchorMap.size() > 0))
             {
                 newUWBdistance = false;
-                map<double, vector<double>>::iterator iterUWBrange;
-                iterUWBrange = globalAnchorMap.begin();
-                for (int i = 0; i < length; i++, iter++)
+                map<double, vector<double>>::iterator iterUWBAnchorMap;
+                iterUWBAnchorMap = globalAnchorMap.begin();
+                // for (int i = 0; i < length; i++, iter++)
+                for (int i = 0; iterUWBAnchorMap != globalAnchorMap.end(); i++, iterUWBAnchorMap++)
                 {
-                    vector<double> uwbAnchorPosition{iterUWBrange->second[0], iterUWBrange->second[1], iterUWBrange->second[2],
-                                                     p_array[i][0], q_array[i][1], q_array[i][2]};
-                    iterUWBrange->second = uwbAnchorPosition; // save the solved global poses
+                    vector<double> uwbAnchorPosition{iterUWBAnchorMap->second[0], iterUWBAnchorMap->second[1], iterUWBAnchorMap->second[2],
+                                                     p_array[i][0], p_array[i][1], p_array[i][2]};
+                    iterUWBAnchorMap->second = uwbAnchorPosition; // save the solved global poses
                 }
+                // printf("UWB anchor map: %f, %f, %f: \n" ,p_array[globalAnchorMap.size()-1][0],
+                //                             p_array[globalAnchorMap.size()-1][1],
+                //                             p_array[globalAnchorMap.size()-1][2]);
+                // printf("UWB anchor map: %f, %f, %f: \n" ,p_array[0][0],
+                //                             p_array[0][1],
+                //                             p_array[0][2]);
             }
             updateAnchorMap();
 
             printf("UWB anchor optimization: %s(%d): \n" ,__FILE__, __LINE__);
+            // printf("UWB anchor map: %d, %d, %d: \n" ,p_array[globalAnchorMap.size()-1][0],
+            //                                          p_array[globalAnchorMap.size()-1][1],
+            //                                          p_array[globalAnchorMap.size()-1][2]);
             // printf("global time %f \n", globalOptimizationTime.toc());
             mPoseMap.unlock();
         }
@@ -390,7 +404,12 @@ void GlobalOptimization::updateAnchorMap()
                 last_UWB_anchorsPs(3,anchor_i)= iter->second[3];
                 last_UWB_anchorsPs(4,anchor_i)= iter->second[4];
                 last_UWB_anchorsPs(5,anchor_i)= iter->second[5];
+                // printf("UWB anchor map: %f, %f, %f: \n" ,iter->second[3],
+                //             iter->second[4],
+                //             iter->second[5]);
+                break;
             }
         }
     }
+    std::cout << last_UWB_anchorsPs << "\n";
 }

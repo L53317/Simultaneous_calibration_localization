@@ -53,7 +53,7 @@ private:
     Eigen::Quaterniond lastQ;
     std::thread threadOpt;
     // int anchors_number = 4; // 2*4 (initial + optimization) or Vector6d
-    Eigen::Vector3d last_UWB_anchorsP[4]; // Add for 4 UWB anchors self-calibration. (Fixed order of total 4 anchors)
+    // Eigen::Vector3d last_UWB_anchorsP[4]; // Add for 4 UWB anchors self-calibration. (Fixed order of total 4 anchors)
     // anchor map; row * col = (initial + optimization position = 6) * anchor_number
     Eigen::MatrixXd last_UWB_anchorsPs;//(6,4);
 };
