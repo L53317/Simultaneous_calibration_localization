@@ -75,8 +75,7 @@ void GlobalOptimization::getUWBanchors(Eigen::Vector3d &odomP, Eigen::Quaternion
 void GlobalOptimization::inputUWB(double t, double x, double y, double z, double posAccuracy)
 {
     vector<double> tmp{x, y, z, posAccuracy};
-    //printf("new uwb: t: %f x: %f y: %f z:%f \n", t, tmp[0], tmp[1], tmp[2]);
-    UWBPositionMap[t] = tmp; // For the same t, replace and update the data.
+    UWBPositionMap[t] = tmp; // For the same t exist in this Map, replace and update the data.
     newUWB = true;
 }
 
@@ -87,9 +86,6 @@ void GlobalOptimization::inputUWBdistance(double t, double x, double y, double z
     // vector<double> tmp{x, y, z, distance, disAccuracy};
     // // printf("new uwb: t: %f x: %f y: %f z:%f \n", t, tmp[0], tmp[1], tmp[2]);
     // UWBDistanceMap[t] = tmp;
-
-    // vector<double> tmp2{x, y, z, x, y, z, distance, disAccuracy};
-    // globalAnchorMap[t]= tmp2; // better to use last estimate as [3]-[5]
 
     /* Which UWB anchors, to update last_UWB_anchorsPs map. */
     int anchor_i = 0;
@@ -163,6 +159,7 @@ void GlobalOptimization::optimize()
 {
     while(true)
     {
+        bool global_use_distance = false; // true; // Use distance measurement or not
         if(newUWB)
         {
             newUWB = false;
@@ -181,7 +178,8 @@ void GlobalOptimization::optimize()
             ceres::LossFunction *loss_function, *loss_function_anchors;
             loss_function = new ceres::HuberLoss(1.0);
             loss_function_anchors = new ceres::HuberLoss(1.0);
-            ceres::LocalParameterization* local_parameterization = new ceres::QuaternionParameterization(); // Manifold
+            // ceres::LocalParameterization* local_parameterization = new ceres::QuaternionParameterization();
+            ceres::Manifold* local_parameterization = new ceres::QuaternionManifold(); // Manifold
 
             /* Add parameters for the optimization problem, the cost function */
             mPoseMap.lock();
@@ -208,22 +206,17 @@ void GlobalOptimization::optimize()
                 problem.AddParameterBlock(t_array[i], 3);
             }
 
-            if(newUWBdistance && (globalAnchorMap.size() > 0))
+            if(newUWBdistance && (globalAnchorMap.size() > 0) && global_use_distance)
             {
-                // newUWBdistance = false;
-                // int length = localPoseMap.size();
-                int lengthAnchorMap = globalAnchorMap.size(); // TODO same with global pose sizes.
-                // UWBDistanceMap
+                // int lengthAnchorMap = globalAnchorMap.size(); // TODO when same with global pose sizes.
                 map<double, vector<double>>::iterator iterAnchor;
                 iterAnchor = globalAnchorMap.begin();
-                for (int i = 0; iterAnchor != globalAnchorMap.end(); i++, iterAnchor++) // TODO
+                for (int i = 0; iterAnchor != globalAnchorMap.end(); i++, iterAnchor++)
                 {
                     p_array[i][0] = iterAnchor->second[3];
                     p_array[i][1] = iterAnchor->second[4];
                     p_array[i][2] = iterAnchor->second[5];
                     problem.AddParameterBlock(p_array[i], 3);
-                    // std::cout << p_array[i][0]<< ","<<p_array[i][1]<< ","<<p_array[i][2] << "\n";
-                    // std::cout << iterAnchor->second[3]<< ","<<iterAnchor->second[4]<< ","<<iterAnchor->second[5] << "\n";
                 }
             }
 
@@ -269,10 +262,8 @@ void GlobalOptimization::optimize()
                 }
             }
 
-            printf("UWB anchor globalAnchorMap size: %d; globalPoseMap size: %d; localPoseMap size: %d \n", 
-                   globalAnchorMap.size(), globalPoseMap.size(), localPoseMap.size());
             /* Add UWB range factor */
-            if(newUWBdistance && (globalAnchorMap.size() > 0))
+            if(newUWBdistance && (globalAnchorMap.size() > 0)&& global_use_distance)
             {
                 map<double, vector<double>>::iterator iterUWBrange; // , iterGlobal;
                 int i = 0;
@@ -283,9 +274,6 @@ void GlobalOptimization::optimize()
                     map<double, vector<double>>::iterator iterGlobal, iterUWBAnchor;
                     iterGlobal = globalPoseMap.find(t);
                     iterUWBAnchor = globalAnchorMap.find(t);
-                    // iterUWBrange = UWBDistanceMap.find(t); // Find UWB poses with the same t
-                    // if (iterUWBrange != UWBDistanceMap.end())
-                    // TODO: globalPoseMap may not have same length and may not with same position.
                     if (iterUWBAnchor != globalAnchorMap.end() && iterGlobal != globalPoseMap.end())
                     {   /* UWB cost functions, and the mearsurements . */
                         ceres::CostFunction* uwbrange_function = DError::Create(
@@ -331,9 +319,8 @@ void GlobalOptimization::optimize()
             }
             updateGlobalPath();
 
-            printf("UWB anchor optimization: %s(%d): \n" ,__FILE__, __LINE__);
             /* update anchors' positions, with the optimization results. */
-            if(newUWBdistance && (globalAnchorMap.size() > 0))
+            if(newUWBdistance && (globalAnchorMap.size() > 0) && global_use_distance)
             {
                 newUWBdistance = false;
                 map<double, vector<double>>::iterator iterUWBAnchorMap;
@@ -345,108 +332,97 @@ void GlobalOptimization::optimize()
                                                      p_array[i][0], p_array[i][1], p_array[i][2]};
                     iterUWBAnchorMap->second = uwbAnchorPosition; // save the solved global poses
                 }
-                // printf("UWB anchor map: %f, %f, %f: \n" ,p_array[globalAnchorMap.size()-1][0],
-                //                             p_array[globalAnchorMap.size()-1][1],
-                //                             p_array[globalAnchorMap.size()-1][2]);
-                // printf("UWB anchor map: %f, %f, %f: \n" ,p_array[0][0],
-                //                             p_array[0][1],
-                //                             p_array[0][2]);
-            }
-            updateAnchorMap();
 
-            printf("UWB anchor optimization: %s(%d): \n" ,__FILE__, __LINE__);
-            // printf("UWB anchor map: %d, %d, %d: \n" ,p_array[globalAnchorMap.size()-1][0],
-            //                                          p_array[globalAnchorMap.size()-1][1],
-            //                                          p_array[globalAnchorMap.size()-1][2]);
+                updateAnchorMap();
+            }
+
+            printf("UWB anchor globalAnchorMap size: %ld; globalPoseMap size: %ld; localPoseMap size: %ld \n",
+                    globalAnchorMap.size(), globalPoseMap.size(), localPoseMap.size());
+            // printf("UWB anchor optimization: %s(%d): \n" ,__FILE__, __LINE__);
 
             // printf("global time %f \n", globalOptimizationTime.toc());
             mPoseMap.unlock();
         }
 
-        /* update anchors' positions, with the optimization results. */
-        // if(newUWBdistance && (globalAnchorMap.size() > 0))
-        // {
-        //     newUWBdistance = false;
+        /* Solve anchors' positions using a new problem. */
+        if(newUWBdistance && (globalAnchorMap.size() > 0))
+        {
+            newUWBdistance = false;
 
-        //     /* Create a new problem to be solved */
-        //     ceres::Problem problem;
-        //     ceres::Solver::Options options;
-        //     options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
-        //     options.max_num_iterations = 10;
-        //     ceres::Solver::Summary summary;
-        //     ceres::LossFunction *loss_function_anchors;
-        //     loss_function_anchors = new ceres::HuberLoss(1.0);
+            /* Create a new problem to be solved */
+            ceres::Problem problem;
+            ceres::Solver::Options options;
+            options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
+            options.max_num_iterations = 20;
+            ceres::Solver::Summary summary;
+            ceres::LossFunction *loss_function_anchors;
+            loss_function_anchors = new ceres::HuberLoss(1.0);
 
-        //     /* Add parameters for the optimization problem, the cost function */
-        //     mPoseMap.lock();
-        //     /* Add local poses in localPoseMap to factor graph */
-        //     int length = localPoseMap.size();
-        //     double p_array[length][3]; // UWB anchors' position variables to be estimated
+            /* Add parameters for the optimization problem, the cost function */
+            mPoseMap.lock();
+            /* Add local poses in localPoseMap to factor graph */
+            int length = localPoseMap.size();
+            double p_array[length][3]; // UWB anchors' position variables to be estimated
 
-        //     int lengthAnchorMap = globalAnchorMap.size(); // TODO same with global pose sizes.
-        //     // UWBDistanceMap
-        //     map<double, vector<double>>::iterator iterAnchor;
-        //     iterAnchor = globalAnchorMap.begin();
-        //     for (int i = 0; iterAnchor != globalAnchorMap.end(); i++, iterAnchor++) // TODO
-        //     {
-        //         p_array[i][0] = iterAnchor->second[3];
-        //         p_array[i][1] = iterAnchor->second[4];
-        //         p_array[i][2] = iterAnchor->second[5];
-        //         problem.AddParameterBlock(p_array[i], 3);
-        //         // std::cout << p_array[i][0]<< ","<<p_array[i][1]<< ","<<p_array[i][2] << "\n";
-        //         // std::cout << iterAnchor->second[3]<< ","<<iterAnchor->second[4]<< ","<<iterAnchor->second[5] << "\n";
-        //     }
+            // UWBDistanceMap
+            map<double, vector<double>>::iterator iterAnchor;
+            iterAnchor = globalAnchorMap.begin();
+            for (int i = 0; iterAnchor != globalAnchorMap.end(); i++, iterAnchor++) // TODO
+            {
+                p_array[i][0] = iterAnchor->second[3];
+                p_array[i][1] = iterAnchor->second[4];
+                p_array[i][2] = iterAnchor->second[5];
+                problem.AddParameterBlock(p_array[i], 3);
+            }
 
-        //     map<double, vector<double>>::iterator iterVIO, iterUWBrange; // , iterGlobal;
-        //     int i = 0;
-        //     for (iterVIO = localPoseMap.begin(); iterVIO != localPoseMap.end(); iterVIO++, i++)
-        //     // for (iterGlobal = globalPoseMap.begin(); iterGlobal != globalPoseMap.end(); iterGlobal++, i++)
-        //     {
-        //         double t = iterVIO->first;
-        //         map<double, vector<double>>::iterator iterGlobal, iterUWBAnchor;
-        //         iterGlobal = globalPoseMap.find(t);
-        //         iterUWBAnchor = globalAnchorMap.find(t);
-        //         // iterUWBrange = UWBDistanceMap.find(t); // Find UWB poses with the same t
-        //         // if (iterUWBrange != UWBDistanceMap.end())
-        //         // TODO: globalPoseMap may not have same length and may not with same position.
-        //         if (iterUWBAnchor != globalAnchorMap.end() && iterGlobal != globalPoseMap.end())
-        //         {   /* UWB cost functions, and the mearsurements . */
-        //             ceres::CostFunction* uwbrange_function = DError::Create(
-        //                 // DError::Create(iterUWBrange->second[3], iterUWBrange->second[4]);
-        //                 // iterVIO->second[0], iterVIO->second[1], iterVIO->second[2], iterUWBrange->second[3], iterUWBrange->second[4]);
-        //                 iterGlobal->second[0], iterGlobal->second[1], iterGlobal->second[2],
-        //                 // iterUWBrange->second[3], iterUWBrange->second[4]);
-        //                 iterUWBAnchor->second[6], iterUWBAnchor->second[7]);
-        //                 // TODO: Add constant condiction of anchor position ! ******** ! //
-        //             problem.AddResidualBlock(uwbrange_function, loss_function_anchors, p_array[i]);
-        //             // double tmp[3] = {p_array[i][0],p_array[i][1],p_array[i][2]};
-        //             // problem.AddResidualBlock(uwbrange_function, loss_function_anchors, tmp);
-        //         }
-        //     }
+            map<double, vector<double>>::iterator iterVIO, iterUWBrange; // , iterGlobal;
+            int i = 0;
+            for (iterVIO = localPoseMap.begin(); iterVIO != localPoseMap.end(); iterVIO++, i++)
+            // for (iterGlobal = globalPoseMap.begin(); iterGlobal != globalPoseMap.end(); iterGlobal++, i++)
+            {
+                double t = iterVIO->first;
+                map<double, vector<double>>::iterator iterGlobal, iterUWBAnchor;
+                iterGlobal = globalPoseMap.find(t);
+                iterUWBAnchor = globalAnchorMap.find(t);
+                // iterUWBrange = UWBDistanceMap.find(t); // Find UWB poses with the same t
+                // if (iterUWBrange != UWBDistanceMap.end())
+                // TODO: globalPoseMap may not have same length and may not with same position.
+                if (iterUWBAnchor != globalAnchorMap.end() && iterGlobal != globalPoseMap.end())
+                {   /* UWB cost functions, and the mearsurements . */
+                    ceres::CostFunction* uwbrange_function = DError::Create(
+                        // DError::Create(iterUWBrange->second[3], iterUWBrange->second[4]);
+                        // iterVIO->second[0], iterVIO->second[1], iterVIO->second[2], iterUWBrange->second[3], iterUWBrange->second[4]);
+                        iterGlobal->second[0], iterGlobal->second[1], iterGlobal->second[2],
+                        // iterUWBrange->second[3], iterUWBrange->second[4]);
+                        iterUWBAnchor->second[6], iterUWBAnchor->second[7]);
+                        // TODO: Add constant condiction of anchor position ! ******** ! //
+                    problem.AddResidualBlock(uwbrange_function, loss_function_anchors, p_array[i]);
+                    // double tmp[3] = {p_array[i][0],p_array[i][1],p_array[i][2]};
+                    // problem.AddResidualBlock(uwbrange_function, loss_function_anchors, tmp);
+                }
+            }
 
-        //     // mPoseMap.unlock();
-        //     ceres::Solve(options, &problem, &summary);
-        //     // std::cout << summary.BriefReport() << "\n";
+            // mPoseMap.unlock();
+            ceres::Solve(options, &problem, &summary);
+            // std::cout << summary.BriefReport() << "\n";
 
-        //     printf("UWB anchor optimization: %s(%d): \n" ,__FILE__, __LINE__);
-        //     /* update anchors' positions, with the optimization results. */
+            /* update anchors' positions, with the optimization results. */
+            map<double, vector<double>>::iterator iterUWBAnchorMap;
+            iterUWBAnchorMap = globalAnchorMap.begin();
+            // for (int i = 0; i < length; i++, iter++)
+            for (int i = 0; iterUWBAnchorMap != globalAnchorMap.end(); i++, iterUWBAnchorMap++)
+            {
+                vector<double> uwbAnchorPosition{iterUWBAnchorMap->second[0], iterUWBAnchorMap->second[1], iterUWBAnchorMap->second[2],
+                                                    p_array[i][0], p_array[i][1], p_array[i][2]};
+                iterUWBAnchorMap->second = uwbAnchorPosition; // save the solved global poses
+            }
+            updateAnchorMap();
 
-        //     map<double, vector<double>>::iterator iterUWBAnchorMap;
-        //     iterUWBAnchorMap = globalAnchorMap.begin();
-        //     // for (int i = 0; i < length; i++, iter++)
-        //     for (int i = 0; iterUWBAnchorMap != globalAnchorMap.end(); i++, iterUWBAnchorMap++)
-        //     {
-        //         vector<double> uwbAnchorPosition{iterUWBAnchorMap->second[0], iterUWBAnchorMap->second[1], iterUWBAnchorMap->second[2],
-        //                                             p_array[i][0], p_array[i][1], p_array[i][2]};
-        //         iterUWBAnchorMap->second = uwbAnchorPosition; // save the solved global poses
-        //     }
-        //     updateAnchorMap();
-
-        //     mPoseMap.unlock();
-        // }
+            mPoseMap.unlock();
+        }
 
         /*  Update rate for optimization calculation (2000; can be smaller if the parameters are manifolds and fast enough). */
-        std::chrono::milliseconds dura(3000); // Should be bigger as the distance is not a manifolds and ill-condiction in z.
+        std::chrono::milliseconds dura(5000); // Should be bigger as the distance is not a manifolds and ill-condiction in z.
         std::this_thread::sleep_for(dura);
     }
     return;
