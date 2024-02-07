@@ -19,10 +19,12 @@ find_package(catkin REQUIRED COMPONENTS
 # )
 
 find_package(Ceres REQUIRED)
+find_package(PCL REQUIRED)
 
 include_directories(
   ${catkin_INCLUDE_DIRS}
   ${CERES_INCLUDE_DIRS}
+  ${PCL_INCLUDE_DIRS}
 )
 
 catkin_package()
@@ -34,6 +36,6 @@ add_executable(global_selfcalibration_node
 # Reqiured if non-official ROS packages(like uwb_localization_dwm) is include in building this source code;
 # The ROS workspace of these packages should be included for building packsge in different workspaces.
 # The add_dependencies() module should be after add_executable().
-add_dependencies(global_selfcalibration_node ${catkin_EXPORTED_TARGETS})
+add_dependencies(global_selfcalibration_node ${catkin_EXPORTED_TARGETS} ${PCL_LIBRARIES})
 
-target_link_libraries(global_selfcalibration_node ${catkin_LIBRARIES} ${CERES_LIBRARIES})
+target_link_libraries(global_selfcalibration_node ${catkin_LIBRARIES} ${CERES_LIBRARIES} ${PCL_LIBRARIES})

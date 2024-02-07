@@ -14,6 +14,9 @@
 #include <fstream>
 #include <queue>
 #include <mutex>
+#include <pcl_conversions/pcl_conversions.h>
+// #include <pcl/point_cloud.h>
+// #include <pcl/point_types.h>
 
 /* Inlcude a UWB message building for UWB data.
    To use official message, maybe replace it with a path having two (or more) poses.
@@ -22,7 +25,7 @@
 #include "uwb_localization_dwm/UWBrange.h"
 
 GlobalOptimization globalEstimator;
-ros::Publisher pub_global_odometry, pub_global_path, pub_car, pub_uwb_anchors;
+ros::Publisher pub_global_odometry, pub_global_path, pub_car, pub_uwb_anchors, pub_uwb_map;
 nav_msgs::Path *global_path;
 double last_vio_t = -1;
 // int anchors_number = 4;
@@ -136,6 +139,21 @@ void UWBrange_callback(const uwb_localization_dwm::UWBrange::ConstPtr &UWBrange_
         uwb_anchor_odom.twist.twist.angular.y = global_uwb_anchors(anchor_initial_pos_dimension+1,anchor_i);
         uwb_anchor_odom.twist.twist.angular.z = global_uwb_anchors(anchor_initial_pos_dimension+2,anchor_i);
         pub_uwb_anchors.publish(uwb_anchor_odom);
+
+        sensor_msgs::PointCloud2 map_msg;
+        pcl::PointCloud<pcl::PointXYZ>::Ptr uwb_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+        for (int i = 0; i < global_uwb_anchors.cols(); i++)
+        {
+            pcl::PointXYZ point(global_uwb_anchors(anchor_initial_pos_dimension+0, i),
+                                global_uwb_anchors(anchor_initial_pos_dimension+1, i),
+                                global_uwb_anchors(anchor_initial_pos_dimension+2, i));
+            uwb_cloud->push_back(point);
+        }
+
+        pcl::toROSMsg(*uwb_cloud, map_msg);
+        map_msg.header = uwb_anchor_odom.header;
+        map_msg.header.frame_id = uwb_anchor_odom.header.frame_id;
+        pub_uwb_map.publish(map_msg);
     }
 
     m_buf.unlock();
@@ -288,6 +306,7 @@ int main(int argc, char **argv)
     pub_global_path = n.advertise<nav_msgs::Path>("uwb_global_path", 100);
     pub_global_odometry = n.advertise<nav_msgs::Odometry>("uwb_global_odometry", 100);
     pub_uwb_anchors = n.advertise<nav_msgs::Odometry>("uwb_map_anchors_position", 100);
+    pub_uwb_map = n.advertise<sensor_msgs::PointCloud2>("uwb_map_pointcloud", 100);
     pub_car = n.advertise<visualization_msgs::MarkerArray>("lidar_car_model", 1000);
 
     ros::spin();
