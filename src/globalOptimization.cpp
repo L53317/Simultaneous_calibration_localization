@@ -1,6 +1,6 @@
 
-#include "globalOpt.h"
-#include "Factors.h"
+#include "globalOptimization.h"
+#include "graphFactors.h"
 
 GlobalOptimization::GlobalOptimization()
 {

@@ -30,8 +30,8 @@ include_directories(
 catkin_package()
 
 add_executable(global_selfcalibration_node
-  src/globalOptNode.cpp
-  src/globalOpt.cpp)
+  src/globalOptimizationNode.cpp
+  src/globalOptimization.cpp)
 
 # Reqiured if non-official ROS packages(like uwb_localization_dwm) is include in building this source code;
 # The ROS workspace of these packages should be included for building packsge in different workspaces.
