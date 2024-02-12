@@ -136,3 +136,27 @@ struct DError
 
     double t_x, t_y, t_z, distance, var;
 };
+
+struct PError
+{
+    /* Factor of global constraints. */
+    PError(double var) : var(var){}
+
+    template <typename T>
+    /* Overload () for members. */
+    bool operator()(const T* tj, const T* tj1, T* residuals) const
+    {
+        residuals[0] = (tj[0] - tj1[0]) / T(var);
+        residuals[1] = (tj[1] - tj1[1]) / T(var);
+        residuals[2] = (tj[2] - tj1[2]) / T(var);
+
+        return true;
+    }
+
+    static ceres::CostFunction* Create(const double var)
+    { /* <type, residual dimension(res_d), input1_d, input2_d> */
+      return (new ceres::AutoDiffCostFunction<PError, 3, 3, 3> (new PError(var)));
+    }
+
+    double var;
+};

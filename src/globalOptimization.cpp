@@ -272,8 +272,11 @@ void GlobalOptimization::optimize()
                 {
                     double t = iterVIO->first;
                     map<double, vector<double>>::iterator iterGlobal, iterUWBAnchor;
+                    // map<double, vector<double>>::iterator iterGlobal, iterUWBAnchor, iterAnchorNext;
                     iterGlobal = globalPoseMap.find(t);
                     iterUWBAnchor = globalAnchorMap.find(t);
+                    // iterAnchorNext = iterUWBAnchor;
+                    // iterAnchorNext++;
                     if (iterUWBAnchor != globalAnchorMap.end() && iterGlobal != globalPoseMap.end())
                     {   /* UWB cost functions, and the mearsurements . */
                         ceres::CostFunction* uwbrange_function = DError::Create(
@@ -286,6 +289,20 @@ void GlobalOptimization::optimize()
                         problem.AddResidualBlock(uwbrange_function, loss_function_anchors, p_array[i]);
                         // double tmp[3] = {p_array[i][0],p_array[i][1],p_array[i][2]};
                         // problem.AddResidualBlock(uwbrange_function, loss_function_anchors, tmp);
+
+                        // /* UWB anchor relative position. */
+                        // for (int iNext = 1; iterAnchorNext != globalAnchorMap.end(); iterAnchorNext++)
+                        // {
+                        //     if (norm(iterAnchorNext->second[0] - iterUWBAnchor->second[0])<0.01 &&
+                        //         norm(iterAnchorNext->second[1] - iterUWBAnchor->second[1])<0.01 &&
+                        //         norm(iterAnchorNext->second[2] - iterUWBAnchor->second[2])<0.01)
+                        //     {
+                        //         iNext = distance(iterUWBAnchor, iterAnchorNext);
+                        //         ceres::CostFunction* uwbrange_function = PError::Create(1);
+                        //         problem.AddResidualBlock(uwbrange_function, loss_function_anchors, p_array[i], p_array[i+iNext]);
+                        //         break;
+                        //     }
+                        // }
                     }
                 }
             }
@@ -366,6 +383,7 @@ void GlobalOptimization::optimize()
 
             // UWBDistanceMap
             map<double, vector<double>>::iterator iterAnchor;
+
             iterAnchor = globalAnchorMap.begin();
             for (int i = 0; iterAnchor != globalAnchorMap.end(); i++, iterAnchor++) // TODO
             {
@@ -381,14 +399,18 @@ void GlobalOptimization::optimize()
             // for (iterGlobal = globalPoseMap.begin(); iterGlobal != globalPoseMap.end(); iterGlobal++, i++)
             {
                 double t = iterVIO->first;
-                map<double, vector<double>>::iterator iterGlobal, iterUWBAnchor;
+                map<double, vector<double>>::iterator iterGlobal, iterUWBAnchor, iterAnchorNext;
                 iterGlobal = globalPoseMap.find(t);
                 iterUWBAnchor = globalAnchorMap.find(t);
+                iterAnchorNext = iterUWBAnchor;
+                iterAnchorNext++;
                 // iterUWBrange = UWBDistanceMap.find(t); // Find UWB poses with the same t
                 // if (iterUWBrange != UWBDistanceMap.end())
                 // TODO: globalPoseMap may not have same length and may not with same position.
+
+                /* UWB cost functions, and the mearsurements. */
                 if (iterUWBAnchor != globalAnchorMap.end() && iterGlobal != globalPoseMap.end())
-                {   /* UWB cost functions, and the mearsurements . */
+                {
                     ceres::CostFunction* uwbrange_function = DError::Create(
                         // DError::Create(iterUWBrange->second[3], iterUWBrange->second[4]);
                         // iterVIO->second[0], iterVIO->second[1], iterVIO->second[2], iterUWBrange->second[3], iterUWBrange->second[4]);
@@ -399,6 +421,24 @@ void GlobalOptimization::optimize()
                     problem.AddResidualBlock(uwbrange_function, loss_function_anchors, p_array[i]);
                     // double tmp[3] = {p_array[i][0],p_array[i][1],p_array[i][2]};
                     // problem.AddResidualBlock(uwbrange_function, loss_function_anchors, tmp);
+
+                    // /* UWB anchor relative position. */
+                    // for (int iNext = 1; iterAnchorNext != globalAnchorMap.end(); iterAnchorNext++)
+                    // {
+                    //     if (norm(iterAnchorNext->second[0] - iterUWBAnchor->second[0])<0.01 &&
+                    //         norm(iterAnchorNext->second[1] - iterUWBAnchor->second[1])<0.01 &&
+                    //         norm(iterAnchorNext->second[2] - iterUWBAnchor->second[2])<0.01)
+                    //     {
+                    //         iNext = distance(iterUWBAnchor, iterAnchorNext);
+                    //         // cout<<"distance: " << distance(iterUWBAnchor, iterAnchorNext)<<
+                    //         //     ": " << norm(iterAnchorNext->second[0] - iterUWBAnchor->second[0]) <<
+                    //         //     ", " << norm(iterAnchorNext->second[1] - iterUWBAnchor->second[1]) <<
+                    //         //     ", " << norm(iterAnchorNext->second[2] - iterUWBAnchor->second[2]) << endl;
+                    //         ceres::CostFunction* uwbrange_function = PError::Create(1);
+                    //         problem.AddResidualBlock(uwbrange_function, loss_function_anchors, p_array[i], p_array[i+iNext]);
+                    //         break;
+                    //     }
+                    // }
                 }
             }
 
