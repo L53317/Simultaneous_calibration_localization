@@ -40,6 +40,7 @@ private:
     // format t, tx,ty,tz,qw,qx,qy,qz
     map<double, vector<double>> localPoseMap; // vio poses
     map<double, vector<double>> globalPoseMap; // optimization poses
+    map<double, vector<double>> globalRt; // globalRt: WUWB_T_WVIO = WUWB_T_i * WVIO_T_i.inverse();
     map<double, vector<double>> UWBPositionMap; // UWB poses
 
     // map<double, vector<double>> UWBDistanceMap; // should have 4 (anchor number) map, or 4 columns

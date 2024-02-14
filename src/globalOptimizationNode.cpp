@@ -147,6 +147,9 @@ void UWBrange_callback(const uwb_localization_dwm::UWBrange::ConstPtr &UWBrange_
             pcl::PointXYZ point(global_uwb_anchors(anchor_initial_pos_dimension+0, i),
                                 global_uwb_anchors(anchor_initial_pos_dimension+1, i),
                                 global_uwb_anchors(anchor_initial_pos_dimension+2, i));
+            // cout << "Anchor map: " << global_uwb_anchors(anchor_initial_pos_dimension+0, i) << " "
+            //                        << global_uwb_anchors(anchor_initial_pos_dimension+1, i) << " "
+            //                        << global_uwb_anchors(anchor_initial_pos_dimension+2, i) << endl;
             uwb_cloud->push_back(point);
         }
 

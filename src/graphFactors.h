@@ -65,13 +65,13 @@ struct RelativeRTError
         residuals[1] = (t_i_ij[1] - T(t_y)) / T(t_var);
         residuals[2] = (t_i_ij[2] - T(t_z)) / T(t_var);
 
-        T relative_q[4];
+        T relative_q[4]; // q_i_j, VIO
         relative_q[0] = T(q_w);
         relative_q[1] = T(q_x);
         relative_q[2] = T(q_y);
         relative_q[3] = T(q_z);
 
-        T q_i_j[4];
+        T q_i_j[4]; // global
         ceres::QuaternionProduct(i_q_w, w_q_j, q_i_j);
 
         T relative_q_inv[4];
@@ -159,4 +159,57 @@ struct PError
     }
 
     double var;
+};
+
+struct GlobalRtError
+{
+    /* Factor from transformantion between global UWB and Lidar. */
+    GlobalRtError(double gt_x, double gt_y, double gt_z,
+                  double lt_x, double lt_y, double lt_z,
+                    double t_var)
+                  :gt_x(gt_x), gt_y(gt_x), gt_z(gt_x),
+                   lt_x(lt_z), lt_y(lt_z), lt_z(lt_z),
+                   t_var(t_var){}
+
+    template <typename T>
+    bool operator()(const T* const q_g_l, const T* t_g_l, T* residuals) const
+    {
+        T t_w_i[3];
+        t_w_i[0] = T(gt_x);
+        t_w_i[1] = T(gt_y);
+        t_w_i[2] = T(gt_z);
+
+        T t_l_i[3];
+        t_l_i[0] = T(lt_x);
+        t_l_i[1] = T(lt_y);
+        t_l_i[2] = T(lt_z);
+
+        // T i_q_w[4];
+        // QuaternionInverse(w_q_i, i_q_w);
+
+        T t_w_i_l[3];
+        ceres::QuaternionRotatePoint(q_g_l, t_l_i, t_w_i_l);
+        t_w_i_l[0] = t_w_i_l[0] + t_g_l[0];
+        t_w_i_l[1] = t_w_i_l[1] + t_g_l[1];
+        t_w_i_l[2] = t_w_i_l[2] + t_g_l[2];
+
+        residuals[0] = (t_w_i[0] - t_w_i_l[0]) / T(t_var);
+        residuals[1] = (t_w_i[1] - t_w_i_l[1]) / T(t_var);
+        residuals[2] = (t_w_i[2] - t_w_i_l[2]) / T(t_var);
+
+        return true;
+    }
+
+    static ceres::CostFunction* Create(const double gt_x, const double gt_y, const double gt_z,
+                                       const double lt_x, const double lt_y, const double lt_z,
+                                       const double t_var)
+    {
+      /* <type, residual dimension(res_d), input_q_d, input_t_d> */
+      return (new ceres::AutoDiffCostFunction< GlobalRtError, 3, 4, 3>
+                (new GlobalRtError(gt_x, gt_y, gt_z, lt_x, lt_y, lt_z, t_var)));
+    }
+
+    double gt_x, gt_y, gt_z;
+    double lt_x, lt_y, lt_z;
+    double t_var;
 };
