@@ -227,9 +227,9 @@ void vio_callback(const nav_msgs::Odometry::ConstPtr &pose_msg)
         else if(uwb_t > t + 0.1)
             break;
     }
-    m_buf.unlock();
+    // m_buf.unlock();
 
-    m_buf.lock();
+    // m_buf.lock();
     while(!uwbRangeQueue.empty())
     {
         uwb_localization_dwm::UWBrange::ConstPtr UWBRange_msg = uwbRangeQueue.front();
@@ -276,7 +276,7 @@ void vio_callback(const nav_msgs::Odometry::ConstPtr &pose_msg)
     pub_global_path.publish(*global_path);
     publish_car_model(t, global_t, global_q);
 
-    cout << " Global pose(x,y,z, w,x,y,z): "
+    cout << " Global pose(x,y,z, w,x,y,z): " << odometry.header.stamp << ", "
          << odometry.pose.pose.position.x << ", "
          << odometry.pose.pose.position.y << ", "
          << odometry.pose.pose.position.z << ",   "
