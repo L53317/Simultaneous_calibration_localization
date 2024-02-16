@@ -379,8 +379,8 @@ void GlobalOptimization::optimize()
                     WVIO_T_body.block<3, 3>(0, 0) = Eigen::Quaterniond(localPoseMap[t][3], localPoseMap[t][4],
                                                                        localPoseMap[t][5], localPoseMap[t][6]).toRotationMatrix();
                     WVIO_T_body.block<3, 1>(0, 3) = Eigen::Vector3d(localPoseMap[t][0], localPoseMap[t][1], localPoseMap[t][2]);
-                    WUWB_T_body.block<3, 3>(0, 0) = Eigen::Quaterniond(globalPose[3], globalPose[4], 
-                                                                        globalPose[5], globalPose[6]).toRotationMatrix();
+                    WUWB_T_body.block<3, 3>(0, 0) = Eigen::Quaterniond(globalPose[3], globalPose[4],
+                                                                       globalPose[5], globalPose[6]).toRotationMatrix();
                     WUWB_T_body.block<3, 1>(0, 3) = Eigen::Vector3d(globalPose[0], globalPose[1], globalPose[2]);
                     WUWB_T_WVIO = WUWB_T_body * WVIO_T_body.inverse();
                     std::cout << "WUWB_T_WVIO:" << "\n" << WUWB_T_WVIO << "\n";
