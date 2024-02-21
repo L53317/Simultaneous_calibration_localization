@@ -403,8 +403,12 @@ void GlobalOptimization::optimize()
             double tRt = iterRt->first;
             std::cout << "globalRt["<< ros::Time(iterRt->first) << "]: " << globalRt[tRt][0] << ","<< globalRt[tRt][1] << ","<< globalRt[tRt][2] << "\n";
 
+
             /* Update global Rt with the latest WUWB_T_WVIO. */
+            globalRt.begin()->second = {t_arrayRt[0][0], t_arrayRt[0][1], t_arrayRt[0][2],
+                                        q_arrayRt[0][0], q_arrayRt[0][1], q_arrayRt[0][2], q_arrayRt[0][3]};
             iterRt = globalRt.begin();
+            iterRt++; // Update the rest with WUWB_T_WVIO; no need
             Eigen::Quaterniond globalRt_q;
             globalRt_q = WUWB_T_WVIO.block<3, 3>(0, 0);
             vector<double> globalRt_tq{WUWB_T_WVIO(0, 3), WUWB_T_WVIO(1, 3), WUWB_T_WVIO(2, 3),
@@ -504,7 +508,7 @@ void GlobalOptimization::optimize()
                         if (norm(p_array[i][j]) < 0.01) // Keep zero coodinate constant
                             constant_components.push_back(j);
                     }
-                    // constant_components.push_back(2); // Set height(z coordinate) constant, if a robot moves in a plane.
+                    constant_components.push_back(2); // Set height(z coordinate) constant, if a robot moves in a plane.
                     ceres::Manifold* subset_parameterization = new ceres::SubsetManifold(3, constant_components);
                         // new ceres::ConstantParameterization(3), constant_components);
                     // ceres::SubsetManifold subset_manifold(3, nonconstant_components); // Or set nonconstant components like {0,2}
