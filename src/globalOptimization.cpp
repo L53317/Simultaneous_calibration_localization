@@ -37,7 +37,7 @@ void GlobalOptimization::inputOdom(double t, Eigen::Vector3d OdomP, Eigen::Quate
 
     geometry_msgs::PoseStamped pose_stamped;
     pose_stamped.header.stamp = ros::Time(t);
-    pose_stamped.header.frame_id = "world";
+    pose_stamped.header.frame_id = "map"; // Use "map", not "world"
     pose_stamped.pose.position.x = lastP.x();
     pose_stamped.pose.position.y = lastP.y();
     pose_stamped.pose.position.z = lastP.z();
@@ -443,7 +443,7 @@ void GlobalOptimization::optimize()
         }
 
         /* Solve anchors' positions using a new problem. */
-        if(newUWBdistance && (globalAnchorMap.size() > 0))
+        if(newUWBdistance && (globalAnchorMap.size() > 0) && !global_use_distance)
         {
             newUWBdistance = false;
 
@@ -627,7 +627,7 @@ void GlobalOptimization::updateGlobalPath()
     {
         geometry_msgs::PoseStamped pose_stamped;
         pose_stamped.header.stamp = ros::Time(iter->first);
-        pose_stamped.header.frame_id = "world";
+        pose_stamped.header.frame_id = "map";
         pose_stamped.pose.position.x = iter->second[0];
         pose_stamped.pose.position.y = iter->second[1];
         pose_stamped.pose.position.z = iter->second[2];
