@@ -103,7 +103,7 @@ struct RelativeRTError
 
 struct DError
 {
-    /* Factor of global constraints.
+    /* Factor of distance constraints for UWB anchor calibration.
        t_x, t_y, t_z, distance, var: the measurments (or observation with measurment)
      */
     DError(double t_x, double t_y, double t_z, double distance, double var)
@@ -139,7 +139,7 @@ struct DError
 
 struct PError
 {
-    /* Factor of global constraints. */
+    /* Factor for relative constraints of anchor positions. */
     PError(double var) : var(var){}
 
     template <typename T>
@@ -163,7 +163,7 @@ struct PError
 
 struct GlobalRtError
 {
-    /* Factor from transformantion between global UWB and Lidar. */
+    /* Factor for transformantion between global UWB and Lidar. */
     GlobalRtError(double gt_x, double gt_y, double gt_z,
                   double lt_x, double lt_y, double lt_z,
                     double t_var)

@@ -294,7 +294,7 @@ int main(int argc, char **argv)
 
     global_path = &globalEstimator.global_path;
 
-    ros::Subscriber sub_UWB = n.subscribe("/uwb/localization/tag/hr_position", 100, UWB_callback);
+    ros::Subscriber sub_UWB = n.subscribe("/uwb/localization/tag/hr_position", 100, UWB_callback); // /dwm1001/tag/tag/position
     // for (int i = 0; i < 4; i++)
     // {
     //     string uwb_range_topic = "/dwm1001/tag/tag/to/anchor/AN"+to_string(i)+"/distance";
