@@ -62,8 +62,8 @@ void GlobalOptimization::getGlobalOdom(Eigen::Vector3d &odomP, Eigen::Quaternion
 void GlobalOptimization::getUWBanchors(Eigen::Vector3d &odomP, Eigen::Quaterniond &odomQ,
                                       Eigen::MatrixXd &anchorP)
 {
-    odomP = lastP;
-    odomQ = lastQ;
+    odomP = WUWB_T_WVIO.block<3, 1>(0, 3); // get globalRt
+    odomQ = WUWB_T_WVIO.block<3, 3>(0, 0);
     // for (int i = 0; i < sizeof(anchorP)/sizeof(anchorP[0]); i++)
     // {
     //     anchorP[i] = last_UWB_anchorsP[i]; // Fixed order of 4 ahchors Positions.
@@ -238,6 +238,47 @@ void GlobalOptimization::optimize()
                         problem.SetParameterBlockConstant(p_array[i]);
                     }
                 }
+
+                // TODO : factor with ranging to estimat anchor position
+                // int length = last_UWB_anchorsPs.cols(); // One anchor for one position only
+                // double p_array[length][3]; // UWB anchors' position variables to be estimated
+                // map<double, vector<double>>::iterator iterAnchor;
+                // iterAnchor = globalAnchorMap.begin();
+                // for (int i = 0; i < length; iterAnchor++)
+                // {
+                //     if (norm(iterAnchor->second[0] - last_UWB_anchorsPs(0,i))<0.01 &&
+                //         norm(iterAnchor->second[1] - last_UWB_anchorsPs(1,i))<0.01 &&
+                //         norm(iterAnchor->second[2] - last_UWB_anchorsPs(2,i))<0.01)
+                //     {
+                //         // p_array are with the same orderas last_UWB_anchorsPs
+                //         p_array[i][0] = last_UWB_anchorsPs(3,i);
+                //         p_array[i][1] = last_UWB_anchorsPs(4,i);
+                //         p_array[i][2] = last_UWB_anchorsPs(5,i);
+                //         // Keep zero coodinate constant, not able to set p_array[i][j] directly; or use manifold
+                //         // problem.AddParameterBlock(p_array[i], 3);
+                //         // if (norm(p_array[i][0])+norm(p_array[i][1]) <= 0.01) // Keep zero coodinate constant
+                //         // {
+                //         //     problem.SetParameterBlockConstant(p_array[i]);
+                //         // }
+                //         std::vector<int> constant_components;
+                //         for (int j = 0; j < 3; j++)
+                //         {
+                //             if (norm(p_array[i][j]) < 0.01) // Keep zero coodinate constant
+                //                 constant_components.push_back(j);
+                //         }
+                //         constant_components.push_back(2); // Set height(z coordinate) constant, if a robot moves in a plane.
+                //         ceres::Manifold* subset_parameterization = new ceres::SubsetManifold(3, constant_components);
+                //             // new ceres::ConstantParameterization(3), constant_components);
+                //         // ceres::SubsetManifold subset_manifold(3, nonconstant_components); // Or set nonconstant components like {0,2}
+                //         // problem.SetParameterization(x, &subset_manifold);
+
+                //         // Add the parameter block with the SubsetManifold to the problem. Manifold,LocalParameterization
+                //         problem.AddParameterBlock(p_array[i], 3, subset_parameterization);
+
+                //         i++;
+                //     }
+                // }
+
             }
 
             /* Add Rt between global UWB and Lidar as optimization variables */
