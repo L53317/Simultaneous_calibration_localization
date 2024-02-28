@@ -492,7 +492,7 @@ void GlobalOptimization::optimize()
             ceres::Problem problem;
             ceres::Solver::Options options;
             options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
-            options.max_num_iterations = 20;
+            options.max_num_iterations = 10;
             ceres::Solver::Summary summary;
             ceres::LossFunction *loss_function_anchors;
             loss_function_anchors = new ceres::HuberLoss(1.0);
