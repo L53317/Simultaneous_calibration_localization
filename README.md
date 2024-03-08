@@ -1,6 +1,6 @@
-# Global self-calibration for UWB
-## Global self-calibration for UWB anchor positions with Lidar and UWB
-An implementation for UWB anchor positions global self-calibration with Lidar using a `modified-A-LOAM` and UWB localization with a regularization method.
+# Simultaneous calibration and localization
+## Global calibration for UWB anchor positions with Lidar and UWB
+An implementation for UWB anchor global calibration with Lidar using a `modified-A-LOAM` and robot localization with UWB.
 
 
 ## 1. Prerequisites
@@ -29,7 +29,7 @@ Clone this repository and the `A-modified-A-LOAM` and catkin_make:
     source ~/catkin_ws/devel/setup.bash
 ```
 
-## 3. UWB self-calibration
+## 3. UWB calibration
 The DATASET includes the UWB distance measurements, the anchor's initial positions and the corresponding Lidar cloud points. You can run the following commands to get optimal estimations of the UWB anchor's positions.
 ```
     roslaunch aloam_velodyne aloam_velodyne_HDL_32.launch
@@ -38,7 +38,7 @@ The DATASET includes the UWB distance measurements, the anchor's initial positio
 ```
 
 ## 4. TODO
-Update the self-calibration implementation with respect to distance measurements.
+Update the calibration implementation with respect to distance measurements.
 
 ## 5. Acknowledgements
 Thanks for [VINS-Fusion](https://github.com/HKUST-Aerial-Robotics/VINS-Fusion) and the [updated VINS-Fusion](https://github.com/L53317/VINS-Fusion).
