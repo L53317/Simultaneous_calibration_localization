@@ -38,7 +38,7 @@ The DATASET includes the UWB distance measurements, the anchor's initial positio
 ```
 
 ## 4. TODO
-Update the calibration implementation with respect to distance measurements.
+Future improvements.
 
 ## 5. Acknowledgements
 Thanks for [VINS-Fusion](https://github.com/HKUST-Aerial-Robotics/VINS-Fusion) and the [updated VINS-Fusion](https://github.com/L53317/VINS-Fusion).
