@@ -20,7 +20,7 @@ Clone this repository and the `A-modified-A-LOAM` and catkin_make:
 
 ```
     cd ~/catkin_ws/src
-    git clone https://github.com/L53317/global_selfcalibration.git
+    git clone https://github.com/L53317/Simultaneous_calibration_localization.git
 
     git clone https://github.com/L53317/A-modified-A-LOAM.git
 
