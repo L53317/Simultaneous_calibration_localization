@@ -289,7 +289,7 @@ void vio_callback(const nav_msgs::Odometry::ConstPtr &pose_msg)
 
 int main(int argc, char **argv)
 {
-    ros::init(argc, argv, "globalEstimator"); // scal
+    ros::init(argc, argv, "globalEstimator"); // scal later updates in global_lidar
     ros::NodeHandle n("~");
 
     global_path = &globalEstimator.global_path;
